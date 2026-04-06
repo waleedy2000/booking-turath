@@ -1,65 +1,204 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
+
+  const [date, setDate] = useState('')
+  const [selectedTime, setSelectedTime] = useState('')
+  const [department, setDepartment] = useState('')
+  const [pin, setPin] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [bookedTimes, setBookedTimes] = useState<string[]>([])
+  const [loadingTimes, setLoadingTimes] = useState(false)
+  const cacheRef = useRef<Record<string, string[]>>({})
+
+  // استدعاء API جلب الأوقات المحجوزة للتاريخ المحدد
+  useEffect(() => {
+    if (!date) {
+      setBookedTimes([])
+      return
+    }
+
+    if (cacheRef.current[date]) {
+      setBookedTimes(cacheRef.current[date])
+      return
+    }
+
+    const fetchBookedTimes = async () => {
+      setLoadingTimes(true)
+      try {
+        const res = await fetch(`/api/bookings?date=${date}`)
+        if (res.ok) {
+          const data = await res.json()
+          const times = data || []
+          setBookedTimes(times)
+          cacheRef.current[date] = times
+        } else {
+          console.error('Failed to fetch booked times')
+          setBookedTimes([])
+        }
+      } catch (err) {
+        console.error('Network error fetching booked times', err)
+        setBookedTimes([])
+      } finally {
+        setLoadingTimes(false)
+      }
+    }
+
+    fetchBookedTimes()
+  }, [date])
+
+  const times = [
+    '3:00 م', '3:30 م', '4:00 م', '4:30 م',
+    '5:00 م', '5:30 م', '6:00 م'
+  ]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="min-h-screen bg-gray-50 p-6 font-[Cairo]">
+
+      {/* العنوان */}
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-bold text-[#097834]">
+          قاعة اجتماعات مبنى صباح الناصر
+        </h1>
+        <p className="text-[#1D1D1B] mt-2">
+          جمعية إحياء التراث الإسلامي - مركز محافظة الفروانية
+        </p>
+      </div>
+
+      {/* الكارد */}
+      <div className="bg-white rounded-2xl shadow p-6 max-w-md mx-auto">
+
+        {/* اختيار الجهة */}
+        <select
+          className="w-full p-3 border rounded-xl mb-3"
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+        >
+          <option value="">اختر الجهة</option>
+          <option>مجلس الإدارة</option>
+          <option>الكلمة الطيبة</option>
+          <option>الاستقطاعات</option>
+          <option>المشاريع</option>
+          <option>ضبط الجودة</option>
+          <option>الإعلامية والتسويق</option>
+          <option>الاستقبال</option>
+          <option>مركز التحفيظ</option>
+          <option>اللجنة العلمية</option>
+          <option>النشء والشباب</option>
+        </select>
+
+        {/* رمز الجهة */}
+        <input
+          type="password"
+          placeholder="رمز الجهة"
+          className="w-full p-3 border rounded-xl mb-4"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+        {/* التاريخ */}
+        <input
+          type="date"
+          className="w-full p-3 border rounded-xl mb-4"
+          min={new Date().toISOString().split('T')[0]}
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+
+        {/* الأوقات */}
+        <div className="grid grid-cols-3 gap-2">
+          {times.map((t) => {
+            const isBooked = bookedTimes.includes(t);
+            return (
+              <button
+                key={t}
+                disabled={isBooked || loadingTimes}
+                type="button"
+                onClick={() => !isBooked && setSelectedTime(t)}
+                className={`p-2 rounded-xl transition-colors font-semibold ${
+                  loadingTimes
+                    ? 'bg-gray-100 text-gray-400 cursor-wait'
+                    : isBooked
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through decoration-gray-400'
+                    : selectedTime === t
+                    ? 'bg-[#097834] text-white shadow'
+                    : 'bg-green-100 text-[#097834] hover:bg-green-200 cursor-pointer'
+                }`}
+              >
+                {loadingTimes ? '...' : t}
+              </button>
+            );
+          })}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+
+        {/* رسائل التنبيه */}
+        {error && <div className="mb-4 text-red-600 text-sm font-semibold text-center">{error}</div>}
+        {message && <div className="mb-4 text-[#097834] text-sm font-semibold text-center">{message}</div>}
+
+        {/* زر الحجز */}
+        <button
+          disabled={isLoading}
+          onClick={async () => {
+            setError('')
+            setMessage('')
+            if (!department) return setError('اختر الجهة')
+            if (!pin) return setError('أدخل رمز الجهة')
+            if (!date) return setError('اختر التاريخ')
+            if (!selectedTime) return setError('اختر الوقت')
+
+            setIsLoading(true)
+            try {
+              const res = await fetch('/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  department,
+                  pin,
+                  date,
+                  time: selectedTime
+                })
+              })
+              
+              const data = await res.json()
+              
+              if (!res.ok) {
+                setError(data.error || 'حدث خطأ غير متوقع')
+              } else {
+                setMessage(data.message || 'تم تأكيد الحجز بنجاح!')
+                
+                // إضافة الوقت المحجوز إلى الكاش والتحديث المباشر
+                const updatedTimes = [...(cacheRef.current[date] || []), selectedTime];
+                cacheRef.current[date] = updatedTimes;
+                setBookedTimes(updatedTimes);
+
+                setTimeout(() => {
+                  setMessage('')
+                  setDepartment('')
+                  setPin('')
+                  setDate('')
+                  setSelectedTime('')
+                }, 3000)
+              }
+
+            } catch (err) {
+              setError('عذراً، فشل الاتصال بالخادم')
+            } finally {
+              setIsLoading(false)
+            }
+          }}
+          className={`mt-6 w-full text-white p-3 rounded-xl transition-colors ${
+            isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#C7AC25] hover:bg-[#b59b1f]'
+          }`}
+        >
+          {isLoading ? 'جاري تأكيد الحجز...' : 'احجز الآن'}
+        </button>
+
+      </div>
+
+    </main>
+  )
 }
