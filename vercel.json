@@ -1,12 +1,2 @@
 {
-  "crons": [
-    {
-      "path": "/api/reminders",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/send-queue",
-      "schedule": "* * * * *"
-    }
-  ]
 }
