@@ -3,14 +3,17 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --rdp-accent-color: #1f6f4a;
+  --rdp-background-color: #e6f2eb;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-cairo);
 }
+
+@custom-variant dark (&:is(.dark *));
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -18,9 +21,275 @@
     --foreground: #ededed;
   }
 }
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
 
 body {
-  background: var(--background);
+  background-color: #f9fafb;
+  background-image: url('/patterns/islamic-pattern.svg');
+  background-size: 150px 150px;
+  background-repeat: repeat;
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  direction: rtl;
+  text-align: right;
+}
+
+.card {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #eee;
+  backdrop-filter: blur(6px);
+}
+.direction-ltr {
+  direction: ltr;
+}
+
+
+.time-btn {
+  background: #e6f2eb;
+  color: #1f6f4a;
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.time-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  background: #d4e9dc;
+}
+
+.time-btn.active {
+  background: #1f6f4a !important;
+  color: white !important;
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(31, 111, 74, 0.3);
+}
+
+.book-btn {
+  background: linear-gradient(135deg, #c9a227, #b8961e);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+}
+
+.book-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(201, 162, 39, 0.3);
+}
+
+.calendar-popup {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid #eee;
+  animation: scaleIn 0.2s ease;
+}
+
+.rdp {
+  --rdp-cell-size: 40px;
+  --rdp-accent-color: #1f6f4a !important;
+  margin: 0;
+  color: #1f6f4a !important;
+}
+
+.rdp-button,
+.rdp-day,
+.rdp-head_cell {
+  color: #1f6f4a !important;
+}
+
+button {
+  color: inherit;
+}
+
+.rdp-day {
+  border-radius: 10px;
+  transition: all 0.2s;
+  color: #1f6f4a !important;
+}
+
+.rdp-day:hover:not(.rdp-day_selected) {
+  background-color: #e6f2eb !important;
+  transform: scale(1.05);
+}
+
+/* إزالة الأزرق بالكامل */
+.rdp-button {
+  color: #1f6f4a !important;
+}
+
+/* إزالة hover الأزرق */
+.rdp-button:hover {
+  background-color: #e6f2eb !important;
+  color: #1f6f4a !important;
+}
+
+.rdp-head_cell {
+  color: #1f6f4a !important;
+}
+
+/* التباعد للشبكة (عزل الأيام بصرياً لعدم التصادم) */
+.rdp-cell {
+  padding: 2px !important;
+}
+
+/* 🚫 إزالة الأزرق نهائياً (مهم جداً) */
+.rdp-day_button:focus,
+.rdp-day_button:active,
+.rdp-day_button:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  background: none !important;
+}
+
+/* اليوم المختار */
+.rdp-selected {
+  outline: none !important;
+  background: none !important;
+}
+
+.rdp-selected .rdp-day_button {
+  background-color: #1f6f4a !important;
+  color: white !important;
+  border-radius: 50% !important;
+}
+
+.rdp-selected .rdp-day_button * {
+  color: white !important;
+}
+
+/* 🧨 قتل أي طبقة فوق الرقم */
+.rdp-day_button::before,
+.rdp-day_button::after {
+  display: none !important;
+}
+
+/* 🎯 التحكم الكامل في الزر مع تنظيم الطبقات (z-index) */
+.rdp-day_button {
+  background: transparent !important;
+  border: none !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* النص فوق كل شيء */
+.rdp-day_button span,
+.rdp-day_button * {
+  position: relative;
+  z-index: 2;
+}
+
+.rdp-day .rdp-day_button {
+  color: inherit;
+}
+
+/* 🎯 اليوم الحالي */
+.rdp-today {
+  outline: none !important;
+  background: none !important;
+}
+
+.rdp-today .rdp-day_button {
+  border: 2px solid #c9a227 !important;
+  background: rgba(201, 162, 39, 0.08) !important;
+  color: #1f6f4a !important;
+  font-weight: 700;
+}
+
+/* 🧠 إذا اليوم هو المختار + الحالي */
+.rdp-today.rdp-selected .rdp-day_button {
+  background-color: #1f6f4a !important;
+  border: 2px solid #c9a227 !important;
+  color: white !important;
+}
+
+.rdp-today.rdp-selected .rdp-day_button * {
+  color: white !important;
+}
+
+.rdp-today.rdp-selected::after {
+  display: none !important;
+}
+
+.rdp-selected .rdp-day_button:hover {
+  background-color: #185c3c !important;
+}
+
+.rdp-today::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background: #c9a227;
+  border-radius: 50%;
+}
+
+.rdp-caption {
+  font-family: var(--font-cairo);
+  font-weight: 700;
+  color: #1f6f4a;
+  font-size: 16px;
+}
+
+.nav-arrow {
+  font-size: 30px;
+  color: #1f6f4a !important;
+  font-weight: bold;
+  line-height: 0.5;
+  padding-bottom: 5px;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.nav-arrow:hover {
+  transform: scale(1.3);
+  color: #145c3a !important;
+}
+
+.rdp-day_partial .rdp-day_button {
+  background: #facc15 !important;
+  color: black !important;
+}
+
+.rdp-day_full .rdp-day_button {
+  background: #ef4444 !important;
+  color: white !important;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #374151;
 }
