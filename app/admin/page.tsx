@@ -43,7 +43,7 @@ export default function AdminPage() {
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [queueStats, setQueueStats] = useState({ pending: 0, sent: 0, failed: 0, recent: [] as any[] })
   const [settings, setSettings] = useState({ enable_confirmation: true, enable_reminder: true, reminder_minutes: 30 })
-  const [departments, setDepartments] = useState<{name: string, phone: string | null}>([])
+  const [departments, setDepartments] = useState<{name: string, phone: string | null}[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
 
   // جلب الحجوزات

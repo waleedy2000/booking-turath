@@ -37,15 +37,17 @@ export function hasConflict(
   newBooking: Booking,
   existing: Booking[]
 ): boolean {
-  if (!newBooking.start || !newBooking.end) return false;
+  const newStart = newBooking.start;
+  const newEnd = newBooking.end;
+  if (!newStart || !newEnd) return false;
 
   return existing.some((b) => {
     if (b.date !== newBooking.date) return false;
     if (!b.start || !b.end) return false;
 
     return (
-      newBooking.start < b.end &&
-      newBooking.end > b.start
+      newStart < b.end &&
+      newEnd > b.start
     );
   });
 }
