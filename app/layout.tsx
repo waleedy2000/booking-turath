@@ -31,6 +31,7 @@ export const metadata: Metadata = {
 import ThemeProvider from "@/components/theme/ThemeProvider";
 
 import SplashWrapper from "@/components/splash/SplashWrapper";
+import RegisterSW from "@/components/RegisterSW";
 
 export default function RootLayout({
   children,
@@ -45,6 +46,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${cairo.className} min-h-full flex flex-col bg-transparent dark:bg-[#0a0a0a] text-black dark:text-white transition-colors duration-300`}>
+        <RegisterSW />
         <ThemeProvider>
           <SplashWrapper>{children}</SplashWrapper>
         </ThemeProvider>

@@ -12,6 +12,8 @@ import { formatTimeRange, formatSingleTime } from '@/utils/timeFormat'
 import Logo from '@/components/branding/Logo'
 import Select from '@/components/ui/Select'
 import usePWAInstall from '@/hooks/usePWAInstall'
+import { app } from "@/lib/firebase"
+import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
 
 dayjs.locale('ar')
 
@@ -20,6 +22,11 @@ const BookingCalendar = dynamic(() => import('../components/BookingCalendar'), {
 })
 
 export default function Home() {
+  console.log("Firebase connected:", app)
+
+  useEffect(() => {
+    requestPermissionAndGetToken()
+  }, [])
 
   const router = useRouter()
   const [dateObj, setDateObj] = useState<Date | undefined>()

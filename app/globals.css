@@ -108,6 +108,15 @@ body {
   --rdp-accent-color: #1f6f4a !important;
   margin: 0;
   color: #1f6f4a !important;
+  width: 100% !important;
+  direction: rtl;
+}
+
+.rdp-months,
+.rdp-month,
+.rdp-table {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .rdp-button,
@@ -124,6 +133,7 @@ button {
   border-radius: 10px;
   transition: all 0.2s;
   color: #1f6f4a !important;
+  margin: 2px !important;
 }
 
 .rdp-day:hover:not(.rdp-day_selected) {
