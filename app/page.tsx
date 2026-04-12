@@ -45,6 +45,26 @@ export default function Home() {
   const cacheRef = useRef<Record<string, string[]>>({})
   const calendarRef = useRef<HTMLDivElement>(null)
 
+  const [isScrollingUp, setIsScrollingUp] = useState(true)
+  const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (typeof window !== 'undefined') {
+        const currentScrollY = window.scrollY
+        if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+          setIsScrollingUp(false)
+        } else if (currentScrollY < lastScrollY.current) {
+          setIsScrollingUp(true)
+        }
+        lastScrollY.current = currentScrollY
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   // إغلاق التقويم عند الضغط خارجه
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -104,7 +124,7 @@ export default function Home() {
         if (res.ok) {
           const data = await res.json()
           if (Array.isArray(data)) {
-             setMonthBookings(data)
+            setMonthBookings(data)
           }
         }
       } catch (err) {
@@ -141,7 +161,7 @@ export default function Home() {
   const isFormValid = department && pin && date && selectedTime
 
   return (
-    <main className="min-h-screen p-6 font-[Cairo]">
+    <main className="min-h-screen p-6 font-[Cairo] pb-[max(100px,calc(100px+env(safe-area-inset-bottom)))]">
 
       {/* العنوان */}
       <div className="flex flex-col items-center gap-4 mb-8">
@@ -150,15 +170,15 @@ export default function Home() {
           <Logo variant="full" priority className="h-20 w-auto object-contain dark:hidden" />
         </div>
         <div className="text-center">
-          <h1 
+          <h1
             className="text-2xl font-bold text-[#097834] cursor-pointer select-none hover:opacity-90 transition-opacity"
             onDoubleClick={() => router.push('/admin')}
             title="قاعة الاجتماعات"
           >
-            نظام إدارة حجز القاعات للإجتماع
+            إدارة حجز قاعة مبنى صباح الناصر
           </h1>
           <p className="text-sm font-semibold text-gray-500 mt-2">
-            نظام حجز القاعات والإشعارات الذكي
+            حجز القاعة مع إشعارات
           </p>
         </div>
       </div>
@@ -224,12 +244,12 @@ export default function Home() {
         {/* رسالة الازدحام الذكية */}
         {dateObj && monthBookings.filter(b => b.date === dayjs(dateObj).format('YYYY-MM-DD')).length >= 5 && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl mb-4 text-sm font-bold flex items-center justify-center gap-2 animate-pulse">
-            <span>⚠</span> <span>هذا اليوم مزدحم جداً والأوقات المتاحة محدودة</span>
+            <span>⚠</span> <span>هذا اليوم مزدحم جدًّا والأوقات المتاحة محدودة</span>
           </div>
         )}
 
         {/* الأوقات */}
-        <div className="grid grid-cols-2 gap-2 direction-rtl">
+        <div className="flex flex-nowrap overflow-x-auto gap-3 pb-4 pt-1 snap-x snap-mandatory scroll-smooth direction-rtl [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {slots.map((slot) => {
             const isBooked = slot.status === "booked";
             return (
@@ -243,15 +263,14 @@ export default function Home() {
                     setIsAutoSelected(false)
                   }
                 }}
-                className={`time-btn ${
-                  loadingTimes
+                className={`time-btn flex-shrink-0 w-[140px] snap-center py-3 px-4 min-h-[48px] ${loadingTimes
                     ? '!bg-gray-100 !text-gray-400 cursor-wait'
                     : isBooked
-                    ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
-                    : selectedTime === slot.start
-                    ? 'active scale-105 shadow-md border-transparent'
-                    : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200'
-                }`}
+                      ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
+                      : selectedTime === slot.start
+                        ? 'active scale-105 shadow-md border-transparent'
+                        : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200'
+                  }`}
               >
                 {loadingTimes ? '...' : <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>}
               </button>
@@ -264,7 +283,7 @@ export default function Home() {
             {date ? `📅 ${dayjs(date).format('DD / MM / YYYY')}` : "📅 اختر التاريخ"} — <span dir="rtl">⏰ {formatSingleTime(selectedTime)}</span> {department && `— 🏢 ${department}`}
             {isAutoSelected && (
               <p className="text-xs text-[#097834] mt-2 font-semibold">
-                ✔ تم اختيار أقرب وقت متاح تلقائياً
+                ✔ تم اختيار أقرب وقت متاح تلقائيًّا
               </p>
             )}
           </div>
@@ -296,9 +315,9 @@ export default function Home() {
                   end: activeSlot.end
                 })
               })
-              
+
               const data = await res.json()
-              
+
               if (!res.ok) {
                 showToast('error', data.message || data.error || 'حدث خطأ غير متوقع')
               } else {
@@ -307,14 +326,15 @@ export default function Home() {
                     <p className="text-xl mb-2 font-extrabold !text-white tracking-wide">🎉 تم حجز القاعة</p>
                     <div className="space-y-1">
                       <p className="!text-white/95 text-base">{date ? `📅 ${dayjs(date).format('DD / MM / YYYY')}` : "📅 التاريخ غير متوفر"}</p>
-                      <p className="!text-white/95 text-base font-bold" dir="rtl">
-                        {'⏰ ' + formatTimeRange(activeSlot.start, activeSlot.end)}
-                      </p>
+                      <div className="!text-white/95 text-base font-bold flex items-center justify-end gap-1" dir="rtl">
+                        <span>⏰</span>
+                        {formatTimeRange(activeSlot.start, activeSlot.end)}
+                      </div>
                       <p className="!text-white/95 text-base">🏢 {department}</p>
                     </div>
                   </div>
                 ))
-                
+
                 // إضافة الوقت المحجوز إلى الكاش والتحديث المباشر
                 const newBooking = { date, start: activeSlot.start, end: activeSlot.end };
                 setMonthBookings(prev => [...prev, newBooking]);
@@ -332,11 +352,10 @@ export default function Home() {
               setIsLoading(false)
             }
           }}
-          className={`book-btn mt-6 w-full !text-white p-4 rounded-xl font-bold transition-all duration-300 ${
-            isLoading || !isFormValid 
-              ? 'opacity-50 cursor-not-allowed bg-gray-400 !transform-none !shadow-none' 
-              : 'bg-gradient-to-r from-[#097834] to-[#0d8f40] hover:shadow-lg hover:-translate-y-1'
-          }`}
+          className={`book-btn mt-6 w-full !text-white p-4 rounded-xl font-semibold transition-all duration-300 ${isLoading || !isFormValid
+              ? 'opacity-50 cursor-not-allowed bg-gray-400 !transform-none !shadow-none'
+              : 'bg-gradient-to-r from-[#097834] to-[#0d8f40] shadow-md hover:scale-[1.02] active:scale-[0.98]'
+            }`}
         >
           {isLoading ? (
             <div className="flex items-center justify-center gap-2">
@@ -356,7 +375,7 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
           <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-4 border-[#097834] border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-bold text-[#097834]">جاري المعالجة...</p>
+            <p className="font-bold text-[#097834]">جارٍ المعالجة...</p>
           </div>
         </div>
       )}
@@ -364,9 +383,8 @@ export default function Home() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${
-            toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
-          }`}
+          className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
+            }`}
         >
           {toast.message}
         </div>
@@ -390,18 +408,19 @@ export default function Home() {
               install();
             }
           }}
-          className="
-            fixed bottom-8 right-6 md:bottom-10 md:right-10 z-[999]
+          className={`
+            fixed bottom-6 right-4 md:bottom-8 md:right-8 z-[999]
             bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800
             dark:from-green-600 dark:to-green-700 dark:hover:from-green-500 dark:hover:to-green-600
-            text-white px-5 py-3
-            rounded-2xl shadow-2xl hover:-translate-y-1 hover:shadow-green-900/50
-            transition-all duration-300 font-bold flex items-center gap-3 animate-fade-in
-          "
+            !text-white px-4 py-2.5 text-sm
+            rounded-full shadow-lg hover:scale-105 hover:shadow-green-900/50
+            transition-all duration-300 font-semibold flex items-center gap-2
+            ${isScrollingUp ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}
+          `}
           title="تثبيت التطبيق"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          تثبيت التطبيق
+          <svg className="w-4 h-4 !text-white stroke-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <span className="!text-white">تثبيت التطبيق</span>
         </button>
       )}
 

@@ -19,10 +19,11 @@ export default function usePWAInstall() {
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIOSDevice);
 
-    // Delay prompt presentation to let user understand product first
+    // Delay prompt presentation to 8 seconds to let user understand product first
+    // This raises adoption and reduces bounce rate
     const showTimer = setTimeout(() => {
       setShowInstallPrompt(true);
-    }, 4000);
+    }, 8000);
 
     const handler = (e: any) => {
       e.preventDefault();
