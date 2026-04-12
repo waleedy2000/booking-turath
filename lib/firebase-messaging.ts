@@ -3,10 +3,14 @@
 import { getMessaging, getToken, isSupported } from "firebase/messaging"
 import { app, firebaseConfig } from "./firebase"
 
-const VAPID_KEY = "BFb-a-WdLDEc7f9c0usHSaVT27odGy5V2eHSricq4Hr6XH3_go7oO3w4OuN7GKPuNTgk_r9QYpqg7vIBicQvtaE"
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
+
+if (!VAPID_KEY) {
+  throw new Error("VAPID key is missing")
+}
 
 export async function requestPermissionAndGetToken() {
-  console.log("API KEY:", firebaseConfig.apiKey)
+  console.log("API KEY:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY)
   console.log("VAPID:", VAPID_KEY)
 
   const supported = await isSupported()
