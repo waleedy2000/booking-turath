@@ -1,6 +1,6 @@
 "use client"
 
-import { getMessaging, getToken, isSupported } from "firebase/messaging"
+import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging"
 import { app, firebaseConfig } from "./firebase"
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
@@ -28,6 +28,16 @@ export async function requestPermissionAndGetToken() {
   }
 
   const messaging = getMessaging(app)
+
+  // Listen for Foreground messages
+  onMessage(messaging, (payload) => {
+    console.log('Foreground message:', payload)
+
+    new Notification(payload.notification?.title || payload.data?.title || 'إشعار', {
+      body: payload.notification?.body || payload.data?.body,
+      icon: '/icons/icon-192.png',
+    })
+  })
 
   const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
 
