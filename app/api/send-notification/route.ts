@@ -31,9 +31,15 @@ export async function POST(req: Request) {
     }
 
     const message = {
-      notification: {
+      data: {
         title,
         body: notificationBody,
+      },
+      webpush: {
+        notification: {
+          title,
+          body: notificationBody,
+        }
       },
       token,
     };
