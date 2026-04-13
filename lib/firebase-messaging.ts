@@ -35,5 +35,15 @@ export async function requestPermissionAndGetToken() {
 
   console.log("FCM Token:", token)
 
+  if (token) {
+    await fetch("/api/save-token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token }),
+    }).catch(console.error)
+  }
+
   return token
 }
