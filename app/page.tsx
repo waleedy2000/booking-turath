@@ -24,8 +24,16 @@ const BookingCalendar = dynamic(() => import('../components/BookingCalendar'), {
 export default function Home() {
   console.log("Firebase connected:", app)
 
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [phoneInput, setPhoneInput] = useState('')
+
   useEffect(() => {
-    requestPermissionAndGetToken()
+    const storedPhone = localStorage.getItem("phone")
+    if (storedPhone) {
+      requestPermissionAndGetToken(storedPhone)
+    } else {
+      setShowPhoneModal(true)
+    }
   }, [])
 
   const router = useRouter()
@@ -169,6 +177,47 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-6 font-[Cairo] pb-[max(100px,calc(100px+env(safe-area-inset-bottom)))]">
+
+      {/* مودل طلب رقم الجوال لتفعيل الإشعارات */}
+      {showPhoneModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4 transition-opacity animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-100 dark:border-gray-800 text-center transform transition-transform scale-100">
+            <h3 className="text-xl font-bold text-[#097834] mb-3">تفعيل الإشعارات 🔔</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5 leading-relaxed">
+              يرجى إدخال رقم جوالك المرتبط بجهتك حتى تصلك إشعارات الحجز الخاصة بك.
+            </p>
+            <input
+              type="tel"
+              dir="ltr"
+              placeholder="965XXXXXXXX"
+              className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-lg font-bold outline-none focus:border-[#097834] focus:ring-2 focus:ring-[#097834]/20 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+            />
+            <button
+              onClick={() => {
+                if (phoneInput.trim().length < 8) {
+                  showToast('error', 'يرجى إدخال رقم صحيح');
+                  return;
+                }
+                localStorage.setItem("phone", phoneInput.trim());
+                setShowPhoneModal(false);
+                requestPermissionAndGetToken(phoneInput.trim());
+                showToast('success', 'تم حفظ الرقم وتفعيل الإشعارات');
+              }}
+              className="w-full bg-[#097834] hover:bg-[#075f28] !text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              حفظ وتفعيل
+            </button>
+            <button
+              onClick={() => setShowPhoneModal(false)}
+              className="w-full mt-3 text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 font-semibold text-sm transition-colors py-2"
+            >
+              تخطي (لن تصلك إشعارات)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* العنوان */}
       <div className="flex flex-col items-center gap-4 mb-8">

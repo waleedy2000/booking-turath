@@ -42,9 +42,17 @@ export default function AdminPage() {
   const [newSubPhone, setNewSubPhone] = useState('')
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [queueStats, setQueueStats] = useState({ pending: 0, sent: 0, failed: 0, recent: [] as any[] })
-  const [settings, setSettings] = useState({ enable_confirmation: true, enable_reminder: true, reminder_minutes: 30 })
+  const [settings, setSettings] = useState({ 
+    enable_confirmation: true, 
+    enable_reminder: true, 
+    reminder_minutes: 30,
+    enable_notifications: true,
+    enable_booking_notifications: true 
+  })
   const [departments, setDepartments] = useState<{name: string, phone: string | null}[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
+  const [pushStats, setPushStats] = useState({ dailySent: 0, dailyFailed: 0, failureRate: 0 })
+  const [triggeringReminders, setTriggeringReminders] = useState(false)
 
   // جلب الحجوزات
   const fetchBookings = async () => {
@@ -89,14 +97,17 @@ export default function AdminPage() {
   const fetchSettingsAndDepts = async () => {
     setLoadingSettings(true)
     try {
-      const [setRes, deptRes] = await Promise.all([
+      const [setRes, deptRes, statsRes] = await Promise.all([
         fetch('/api/settings'),
-        fetch('/api/departments')
+        fetch('/api/departments'),
+        fetch('/api/notification-stats')
       ]);
       const setData = await setRes.json();
       const deptData = await deptRes.json();
+      const statsData = await statsRes.json();
       if (setData && !setData.error) setSettings(setData);
       if (deptData && Array.isArray(deptData)) setDepartments(deptData);
+      if (statsData && !statsData.error) setPushStats(statsData);
     } catch(err) { console.error(err) }
     setLoadingSettings(false)
   }
@@ -160,6 +171,23 @@ export default function AdminPage() {
       toast.error('فشل في الإرسال', { id: loadId });
     }
   }
+
+  const triggerReminders = async () => {
+    setTriggeringReminders(true);
+    const id = toast.loading('جاري فحص وإرسال التذكيرات...');
+    try {
+      const res = await fetch('/api/reminders');
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`تم بنجاح! معالجة ${data.processed} تذكيرات`, { id });
+      } else {
+        toast.error('فشل معالجة التذكيرات: ' + data.error, { id });
+      }
+    } catch (err) {
+      toast.error('خطأ في الاتصال بالسيرفر', { id });
+    }
+    setTriggeringReminders(false);
+  };
 
   const addSubscriber = async () => {
     if (!newSubPhone) return toast.error('الرقم مطلوب')
@@ -553,16 +581,63 @@ export default function AdminPage() {
               <div className="space-y-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={settings.enable_confirmation} onChange={(e) => updateSetting('enable_confirmation', e.target.checked)} className="w-5 h-5 accent-[#097834]" />
-                  <span className="font-bold">تفعيل رسائل تأكيد الحجز (للجهات)</span>
+                  <span className="font-bold">تفعيل رسائل SMS التأكيدية (للجهات)</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={settings.enable_reminder} onChange={(e) => updateSetting('enable_reminder', e.target.checked)} className="w-5 h-5 accent-[#097834]" />
-                  <span className="font-bold">تفعيل رسائل التذكير (للمنظمين)</span>
+                  <span className="font-bold">تفعيل رسائل SMS التذكيرية (للمنظمين)</span>
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-6">
                   <span className="font-bold text-gray-700">التذكير قبل: </span>
                   <input type="number" min="5" value={settings.reminder_minutes} onChange={(e) => updateSetting('reminder_minutes', parseInt(e.target.value) || 30)} className="w-20 p-2 border border-gray-300 rounded-lg text-center focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none" />
                   <span className="font-bold text-gray-700">دقيقة</span>
+                </div>
+
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-[#097834] text-lg">إشعارات التطبيق (Push Notifications)</h3>
+                    <div className="flex gap-2">
+                       <button 
+                          type="button" 
+                          disabled={triggeringReminders}
+                          onClick={triggerReminders} 
+                          className="bg-[#097834] hover:bg-[#065f2a] !text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                          {triggeringReminders ? '⏳ جاري التشغيل...' : '🔘 تشغيل التذكير الآن'}
+                       </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-4 bg-white px-3 py-2 rounded-lg shadow-sm w-fit border border-gray-200">
+                      <span className="text-sm font-bold text-gray-500 ml-2">حالة النظام:</span>
+                      {!settings.enable_notifications ? (
+                        <><span className="text-xl">🔴</span><span className="font-bold text-sm text-red-600">النظام متوقف</span></>
+                      ) : pushStats.failureRate > 20 ? (
+                        <><span className="text-xl">🟡</span><span className="font-bold text-sm text-yellow-600">مشاكل جزئية ({pushStats.failureRate}%)</span></>
+                      ) : (
+                        <><span className="text-xl">🟢</span><span className="font-bold text-sm text-green-600">يعمل بكفاءة</span></>
+                      )}
+                  </div>
+
+                  {/* Push Notifications Metrics Dashboard */}
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="p-3 rounded-lg text-center shadow-sm bg-white border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1 font-semibold">رسائل التطبيق (اخر 24 ساعة)</p>
+                      <p className="font-bold text-lg text-gray-800">{pushStats.dailySent}</p>
+                    </div>
+                    <div className="p-3 rounded-lg text-center shadow-sm bg-white border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1 font-semibold">فشل في الإرسال</p>
+                      <p className="font-bold text-lg text-red-500">{pushStats.dailyFailed}</p>
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-3 cursor-pointer mb-3 bg-white p-3 rounded-lg shadow-sm border border-gray-100 transition-colors hover:border-[#097834]">
+                    <input type="checkbox" checked={settings.enable_notifications} onChange={(e) => updateSetting('enable_notifications', e.target.checked)} className="w-5 h-5 accent-[#097834]" />
+                    <span className="font-bold text-gray-800">التفعيل المركزي للإشعارات (Master Switch)</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer bg-white p-3 rounded-lg shadow-sm border border-gray-100 transition-colors hover:border-[#097834]">
+                    <input type="checkbox" checked={settings.enable_booking_notifications} onChange={(e) => updateSetting('enable_booking_notifications', e.target.checked)} className="w-5 h-5 accent-[#097834]" />
+                    <span className="font-bold text-gray-800">تفعيل إشعارات حجز القاعات التلقائية</span>
+                  </label>
                 </div>
               </div>
             )}

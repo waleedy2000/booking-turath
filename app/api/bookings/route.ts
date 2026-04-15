@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/utils/supabase-admin';
 import { formatSingleTime } from '@/utils/timeFormat';
+import { dispatchEvent } from '@/lib/notification-dispatcher';
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     // 1. تحقق من رمز الـ PIN الخاص بالجهة
     const { data: deptData, error: deptError } = await supabase
       .from('departments')
-      .select('pin_code, phone')
+      .select('id, pin_code, phone')
       .eq('name', department)
       .single();
 
@@ -83,6 +84,16 @@ export async function POST(request: Request) {
     } catch (insertError) {
       console.error("Booking Insert Error:", insertError);
       return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
+    }
+
+    // --- Push Notification (Event Driven) ---
+    try {
+      await dispatchEvent({
+        type: 'BOOKING_CREATED',
+        entity_id: deptData.id,
+      });
+    } catch (pushErr) {
+      console.error('Failed to dispatch push notification event:', pushErr);
     }
 
     // --- Notification Scheduling Logic ---

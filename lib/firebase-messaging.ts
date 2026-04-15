@@ -9,7 +9,7 @@ if (!VAPID_KEY) {
   throw new Error("VAPID key is missing")
 }
 
-export async function requestPermissionAndGetToken() {
+export async function requestPermissionAndGetToken(phone?: string) {
   console.log("API KEY:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY)
   console.log("VAPID:", VAPID_KEY)
 
@@ -49,13 +49,31 @@ export async function requestPermissionAndGetToken() {
   console.log("FCM Token:", token)
 
   if (token) {
-    await fetch("/api/save-token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token }),
-    }).catch(console.error)
+    // Use phone from param or localStorage
+    const userPhone = phone || localStorage.getItem("phone")
+
+    if (userPhone) {
+      // New: register device with phone + token
+      await fetch("/api/register-device", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: userPhone,
+          token,
+        }),
+      }).catch(console.error)
+    } else {
+      // Fallback: save token without user (backward compatibility)
+      await fetch("/api/save-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      }).catch(console.error)
+    }
   }
 
   return token
