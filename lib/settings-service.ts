@@ -1,4 +1,5 @@
-import { supabaseAdmin } from "@/utils/supabase-admin";
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabaseAdmin = getSupabaseAdmin();
 
 export async function getSettings() {
   const { data } = await supabaseAdmin

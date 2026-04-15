@@ -1,4 +1,5 @@
-import { supabaseAdmin } from "@/utils/supabase-admin";
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabaseAdmin = getSupabaseAdmin();
 import { dispatchEvent } from "@/lib/notification-dispatcher";
 
 export const dynamic = 'force-dynamic';

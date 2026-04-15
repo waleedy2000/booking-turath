@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/utils/supabase-admin';
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabase = getSupabaseAdmin() as any;
 import { formatSingleTime } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
 
@@ -31,11 +32,14 @@ export async function POST(request: Request) {
     }
 
     // 1. تحقق من رمز الـ PIN الخاص بالجهة
-    const { data: deptData, error: deptError } = await supabase
+    const deptResult = await supabase
       .from('departments')
       .select('id, pin_code, phone')
       .eq('name', department)
       .single();
+
+    const deptError = deptResult.error;
+    const deptData = deptResult.data as any;
 
     if (deptError || !deptData) {
       return NextResponse.json({ error: 'الجهة غير مسجلة لدينا' }, { status: 404 });
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     // 2. التحقق من التعارض (Overlap) لنفس اليوم والوقت بدقة الاحترافية
-    const { data: existing, error: checkError } = await supabase
+    const { data: existing, error: checkError } = await (supabase as any)
       .from('bookings')
       .select('*')
       .eq('date', date);
@@ -56,7 +60,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
     }
 
-    const conflict = existing?.some(b => 
+    const conflict = (existing as any[])?.some(b => 
       start_time < b.end_time && end_time > b.start_time
     );
 
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
 
     // 3. حفظ الحجز في قاعدة البيانات
     try {
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from('bookings')
         .insert([
           {

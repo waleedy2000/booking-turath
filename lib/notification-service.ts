@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
-import { supabaseAdmin as supabase } from "@/utils/supabase-admin";
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabase = getSupabaseAdmin();
 
 // Initialize Firebase Admin safely
 if (!admin.apps.length) {

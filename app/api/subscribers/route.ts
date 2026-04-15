@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/utils/supabase-admin';
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabase = getSupabaseAdmin();
 
 export async function GET() {
   const { data, error } = await supabase.from('subscribers').select('*');

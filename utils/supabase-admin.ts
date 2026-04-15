@@ -1,16 +1,26 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+let supabaseAdminInstance: any = null;
 
-// SERVICE ROLE key — bypasses RLS entirely.
-// ⚠️  NEVER expose this key on the client side.
-// Only import this file in server-side code (API routes / Server Components).
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+export function getSupabaseAdmin(): any {
+  return new Proxy({}, {
+    get(target, prop) {
+      if (!supabaseAdminInstance) {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    // Disable auto-refresh and session persistence for server-side usage
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
+        if (!url || !key) {
+          throw new Error("Supabase env vars are missing");
+        }
+
+        supabaseAdminInstance = createClient(url, key, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        });
+      }
+      return supabaseAdminInstance[prop];
+    }
+  });
+}

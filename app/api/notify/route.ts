@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/utils/supabase-admin';
+import { getSupabaseAdmin } from "@/utils/supabase-admin";
+const supabase = getSupabaseAdmin();
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'فشل جلب المشتركين' }, { status: 500 });
     }
 
-    const queueItems = subscribers.map(user => ({
+    const queueItems = subscribers.map((user: { phone: string }) => ({
       phone: user.phone,
       message,
       status: 'pending',
