@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as admin from "firebase-admin";
-import { supabase } from "@/utils/supabase";
+import { supabaseAdmin as supabase } from "@/utils/supabase-admin";
 
 // Initialize Firebase Admin safely
 if (!admin.apps.length) {

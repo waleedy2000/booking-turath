@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/utils/supabase';
+import { supabaseAdmin as supabase } from '@/utils/supabase-admin';
 import { formatSingleTime } from '@/utils/timeFormat';
 
 export async function POST(request: Request) {
