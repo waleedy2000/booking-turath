@@ -7,7 +7,7 @@ type EventType = "BOOKING_CREATED" | "BOOKING_REMINDER";
 export async function dispatchEvent(event: {
   type: EventType;
   entity_id: string;
-  payload?: any;
+  payload?: { start_time?: string; [key: string]: unknown };
 }) {
   switch (event.type) {
     case "BOOKING_CREATED":
@@ -19,7 +19,7 @@ export async function dispatchEvent(event: {
 
 async function handleBookingCreated(event: {
   entity_id: string;
-  payload?: any;
+  payload?: { start_time?: string; [key: string]: unknown };
 }) {
   const settings = await getSettings();
 
@@ -38,7 +38,7 @@ async function handleBookingCreated(event: {
 
 async function handleBookingReminder(event: {
   entity_id: string;
-  payload?: any;
+  payload?: { start_time?: string; [key: string]: unknown };
 }) {
   const settings = await getSettings();
 

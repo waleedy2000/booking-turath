@@ -60,9 +60,10 @@ export async function GET() {
       success: true,
       processed: bookings?.length || 0,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     return Response.json(
-      { error: err.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }

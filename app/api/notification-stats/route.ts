@@ -30,7 +30,8 @@ export async function GET() {
       dailyFailed: dailyFailed || 0,
       failureRate: dailySent ? Math.round(((dailyFailed || 0) / dailySent) * 100) : 0
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

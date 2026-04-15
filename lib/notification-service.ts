@@ -21,7 +21,7 @@ if (!admin.apps.length) {
 /**
  * Smart Retry Wrapper for external network calls (e.g. Firebase)
  */
-async function sendWithRetry(fn: () => Promise<any>, retries = 3): Promise<any> {
+async function sendWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   try {
     return await fn();
   } catch (err) {
@@ -61,7 +61,7 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
     return { success: false, error: "Failed to fetch tokens" };
   }
 
-  const tokens = tokensData?.map((t: any) => t.token) || [];
+  const tokens = tokensData?.map((t: { token: string }) => t.token) || [];
 
   if (!tokens.length) {
     return { success: true, message: 'No registered tokens found', sent: 0, failed: 0 };
@@ -92,7 +92,7 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
     totalSent += response.successCount;
     totalFailed += response.failureCount;
 
-    response.responses.forEach((res, idx) => {
+    response.responses.forEach((res: admin.messaging.SendResponse, idx: number) => {
       if (!res.success) {
         const error = res.error;
         if (
