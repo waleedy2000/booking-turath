@@ -607,15 +607,55 @@ export default function AdminPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2 mb-4 bg-white px-3 py-2 rounded-lg shadow-sm w-fit border border-gray-200">
+                  <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
                       <span className="text-sm font-bold text-gray-500 ml-2">حالة النظام:</span>
                       {!settings.enable_notifications ? (
-                        <><span className="text-xl">🔴</span><span className="font-bold text-sm text-red-600">النظام متوقف</span></>
+                        <><span className="text-xl">🔴</span><span className="font-bold text-sm text-red-600">متوقف</span></>
                       ) : pushStats.failureRate > 20 ? (
-                        <><span className="text-xl">🟡</span><span className="font-bold text-sm text-yellow-600">مشاكل جزئية ({pushStats.failureRate}%)</span></>
+                        <><span className="text-xl">🟡</span><span className="font-bold text-sm text-yellow-600">مشاكل ({pushStats.failureRate}%)</span></>
                       ) : (
-                        <><span className="text-xl">🟢</span><span className="font-bold text-sm text-green-600">يعمل بكفاءة</span></>
+                        <><span className="text-xl">🟢</span><span className="font-bold text-sm text-green-600">شغال وكفاءة</span></>
                       )}
+                    </div>
+
+                    <div className="flex flex-1 items-center gap-2 bg-blue-50 p-2 rounded-lg border border-blue-100">
+                      <input 
+                        type="text" 
+                        id="test_push_entity_id"
+                        placeholder="أدخل Entity ID للاختبار..." 
+                        className="flex-1 p-2 border border-blue-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={async () => {
+                          const entityId = (document.getElementById('test_push_entity_id') as HTMLInputElement)?.value;
+                          if (!entityId) return alert("الرجاء إدخال الـ Entity ID (UUID للجهة) لتجربة الإشعار");
+                          
+                          const id = toast.loading('جاري الاختبار...');
+                          try {
+                            const res = await fetch("/api/send-notification", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                entity_id: entityId,
+                                title: "🚀 اختبار إشعار",
+                                body: "هذا إشعار تجريبي لاختبار النظام"
+                              })
+                            });
+                            if (res.ok) {
+                              toast.success("تم إرسال الإشعار بنجاح", { id });
+                            } else {
+                              toast.error("حدث خطأ أثناء الإرسال", { id });
+                            }
+                          } catch (err) {
+                            toast.error("فشل الاتصال", { id });
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 !text-white px-4 py-2 rounded-lg shadow-sm font-bold text-sm transition-all whitespace-nowrap"
+                      >
+                        اختبار Push 🚀
+                      </button>
+                    </div>
                   </div>
 
                   {/* Push Notifications Metrics Dashboard */}
