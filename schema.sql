@@ -15,7 +15,8 @@ INSERT INTO departments (name, pin_code) VALUES
   ('الاستقبال', '7777'),
   ('مركز التحفيظ', '8888'),
   ('اللجنة العلمية', '9999'),
-  ('النشء والشباب', '0000')
+  ('النشء والشباب', '0000'),
+  ('الدعم الفني', '6616')
 ON CONFLICT (name) DO NOTHING;
 
 -- 3. Notification Subscribers Table

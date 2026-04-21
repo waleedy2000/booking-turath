@@ -261,6 +261,7 @@ export default function Home() {
             { label: "مركز التحفيظ", value: "مركز التحفيظ" },
             { label: "اللجنة العلمية", value: "اللجنة العلمية" },
             { label: "النشء والشباب", value: "النشء والشباب" },
+            { label: "الدعم الفني", value: "الدعم الفني" },
           ]}
         />
 
@@ -320,12 +321,12 @@ export default function Home() {
                   }
                 }}
                 className={`time-btn flex-shrink-0 w-[140px] snap-center py-3 px-4 min-h-[48px] ${loadingTimes
-                    ? '!bg-gray-100 !text-gray-400 cursor-wait'
-                    : isBooked
-                      ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
-                      : selectedTime === slot.start
-                        ? 'active scale-105 shadow-md border-transparent'
-                        : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200'
+                  ? '!bg-gray-100 !text-gray-400 cursor-wait'
+                  : isBooked
+                    ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
+                    : selectedTime === slot.start
+                      ? 'active scale-105 shadow-md border-transparent'
+                      : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200'
                   }`}
               >
                 {loadingTimes ? '...' : <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>}
@@ -409,8 +410,8 @@ export default function Home() {
             }
           }}
           className={`book-btn mt-6 w-full !text-white p-4 rounded-xl font-semibold transition-all duration-300 ${isLoading || !isFormValid
-              ? 'opacity-50 cursor-not-allowed bg-gray-400 !transform-none !shadow-none'
-              : 'bg-gradient-to-r from-[#097834] to-[#0d8f40] shadow-md hover:scale-[1.02] active:scale-[0.98]'
+            ? 'opacity-50 cursor-not-allowed bg-gray-400 !transform-none !shadow-none'
+            : 'bg-gradient-to-r from-[#097834] to-[#0d8f40] shadow-md hover:scale-[1.02] active:scale-[0.98]'
             }`}
         >
           {isLoading ? (
