@@ -2,21 +2,34 @@ import * as admin from "firebase-admin";
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 const supabase = getSupabaseAdmin();
 
-// Initialize Firebase Admin safely
-if (!admin.apps.length) {
+let cachedApp: admin.app.App | null = null;
+
+function getFirebaseAdminApp() {
+  if (cachedApp) return cachedApp;
+
+  const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccountStr) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT is missing in environment variables.");
+  }
+
   try {
-    const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!serviceAccountStr) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT is missing in environment variables.");
-    }
     const serviceAccount = JSON.parse(serviceAccountStr);
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    cachedApp = admin.apps.length
+      ? admin.app()
+      : admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+
+    return cachedApp;
   } catch (error) {
     console.error("Firebase admin initialization error:", error);
+    throw error;
   }
+}
+
+function getMessaging() {
+  return getFirebaseAdminApp().messaging();
 }
 
 /**
@@ -87,7 +100,7 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
     };
 
     const response = await sendWithRetry(() => 
-      admin.messaging().sendEachForMulticast(message)
+      getMessaging().sendEachForMulticast(message)
     );
     
     totalSent += response.successCount;

@@ -17,7 +17,16 @@ type Booking = {
 
 import { getAvailableSlots } from '@/services/timeSlotsEngine'
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
+async function fetchJson(url: string) {
+  const res = await fetch(url);
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`${url} failed: ${res.status} - ${text}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '6616';
 
 const times = [
   '3:00 م', '3:30 م', '4:00 م',
@@ -27,7 +36,7 @@ const times = [
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
-  
+
   // Bookings State
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,19 +46,19 @@ export default function AdminPage() {
 
   // Subscribers & Settings State
   const [activeTab, setActiveTab] = useState<'bookings' | 'subscribers'>('bookings')
-  const [subscribers, setSubscribers] = useState<{id: string; name: string, phone: string}[]>([])
+  const [subscribers, setSubscribers] = useState<{ id: string; name: string, phone: string }[]>([])
   const [newSubName, setNewSubName] = useState('')
   const [newSubPhone, setNewSubPhone] = useState('')
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [queueStats, setQueueStats] = useState({ pending: 0, sent: 0, failed: 0, recent: [] as any[] })
-  const [settings, setSettings] = useState({ 
-    enable_confirmation: true, 
-    enable_reminder: true, 
+  const [settings, setSettings] = useState({
+    enable_confirmation: true,
+    enable_reminder: true,
     reminder_minutes: 30,
     enable_notifications: true,
-    enable_booking_notifications: true 
+    enable_booking_notifications: true
   })
-  const [departments, setDepartments] = useState<{name: string, phone: string | null}[]>([])
+  const [departments, setDepartments] = useState<{ name: string, phone: string | null }[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [pushStats, setPushStats] = useState({ dailySent: 0, dailyFailed: 0, failureRate: 0 })
   const [triggeringReminders, setTriggeringReminders] = useState(false)
@@ -64,12 +73,12 @@ export default function AdminPage() {
         url += `?date=${selectedDate}`
       }
 
-      const res = await fetch(url)
-      const data = await res.json()
+      const data = await fetchJson(url)
 
       setBookings(data || [])
     } catch (err) {
-      console.error(err)
+      console.error('fetchBookings error:', err)
+      setBookings([])
     }
     setLoading(false)
   }
@@ -81,15 +90,13 @@ export default function AdminPage() {
   const fetchSubscribers = async () => {
     setLoadingSubs(true)
     try {
-      const res = await fetch('/api/subscribers')
-      const data = await res.json()
+      const data = await fetchJson('/api/subscribers')
       setSubscribers(Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []))
 
-      const statsRes = await fetch('/api/queue-stats')
-      const statsData = await statsRes.json()
+      const statsData = await fetchJson('/api/queue-stats')
       setQueueStats(statsData)
     } catch (err) {
-      console.error(err)
+      console.error('fetchSubscribers error:', err)
     }
     setLoadingSubs(false)
   }
@@ -97,18 +104,15 @@ export default function AdminPage() {
   const fetchSettingsAndDepts = async () => {
     setLoadingSettings(true)
     try {
-      const [setRes, deptRes, statsRes] = await Promise.all([
-        fetch('/api/settings'),
-        fetch('/api/departments'),
-        fetch('/api/notification-stats')
+      const [setData, deptData, statsData] = await Promise.all([
+        fetchJson('/api/settings'),
+        fetchJson('/api/departments'),
+        fetchJson('/api/notification-stats')
       ]);
-      const setData = await setRes.json();
-      const deptData = await deptRes.json();
-      const statsData = await statsRes.json();
       if (setData && !setData.error) setSettings(setData);
       if (deptData && Array.isArray(deptData)) setDepartments(deptData);
       if (statsData && !statsData.error) setPushStats(statsData);
-    } catch(err) { console.error(err) }
+    } catch (err) { console.error('fetchSettingsAndDepts error:', err) }
     setLoadingSettings(false)
   }
 
@@ -176,10 +180,9 @@ export default function AdminPage() {
     setTriggeringReminders(true);
     const id = toast.loading('جاري فحص وإرسال التذكيرات...');
     try {
-      const res = await fetch('/api/reminders');
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`تم بنجاح! معالجة ${data.processed} تذكيرات`, { id });
+      const data = await fetchJson('/api/reminders');
+      if (!data?.error) {
+        toast.success(`تم بنجاح! معالجة ${data?.processed || 0} تذكيرات`, { id });
       } else {
         toast.error('فشل معالجة التذكيرات: ' + data.error, { id });
       }
@@ -285,7 +288,7 @@ export default function AdminPage() {
   }
 
   // فلترة الجهة
-  const filteredBookings = bookings.filter(b => 
+  const filteredBookings = bookings.filter(b =>
     b.department_name.toLowerCase().includes(searchEntity.toLowerCase())
   )
 
@@ -343,7 +346,7 @@ export default function AdminPage() {
 
   const exportToExcel = () => {
     if (!engineBookings.length) return toast.error('لا توجد حجوزات للتصدير')
-    
+
     setIsExporting(true)
     try {
       const data = engineBookings.map((b) => ({
@@ -380,7 +383,7 @@ export default function AdminPage() {
           </h1>
         </div>
         {activeTab === 'bookings' && (
-          <button 
+          <button
             onClick={exportToExcel}
             disabled={isExporting}
             className={`bg-[#097834] !text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all hover:bg-[#075f28] ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -406,117 +409,114 @@ export default function AdminPage() {
       </div>
 
       {activeTab === 'bookings' ? (
-      <>
-        {/* فلاتر */}
-        <div className="flex gap-3 mb-4">
-          <input
-            type="date"
-            className="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="بحث بالجهة..."
-            value={searchEntity}
-            onChange={(e) => setSearchEntity(e.target.value)}
-            className="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-          />
-        </div>
-
-      {/* الإحصائيات الذكية */}
-      {selectedDate && stats && !loading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 mb-6">
-
-          {/* نسبة الإشغال */}
-          <div className={`p-4 rounded-xl text-center shadow-sm border ${
-            stats.occupancy > 70 ? 'bg-red-50 border-red-200' :
-            stats.occupancy > 40 ? 'bg-yellow-50 border-yellow-200' :
-            'bg-green-50 border-green-200'
-          }`}>
-            <p className="text-sm text-gray-600 mb-1 font-semibold">الإشغال</p>
-            <p className={`font-bold text-xl ${
-              stats.occupancy > 70 ? 'text-red-700' :
-              stats.occupancy > 40 ? 'text-yellow-700' :
-              'text-green-700'
-            }`}>
-              {stats.occupancy}%
-            </p>
+        <>
+          {/* فلاتر */}
+          <div className="flex gap-3 mb-4">
+            <input
+              type="date"
+              className="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="بحث بالجهة..."
+              value={searchEntity}
+              onChange={(e) => setSearchEntity(e.target.value)}
+              className="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+            />
           </div>
 
-          {/* عدد الحجوزات */}
-          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 font-semibold">الحجوزات</p>
-            <p className="font-bold text-xl text-gray-800 dark:text-gray-200">{stats.total}</p>
-          </div>
+          {/* الإحصائيات الذكية */}
+          {selectedDate && stats && !loading && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 mb-6">
 
-          {/* أكثر جهة */}
-          <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 shadow-sm text-center">
-            <p className="text-sm text-gray-600 mb-1 font-semibold">أكثر جهة</p>
-            <p className="font-bold text-lg text-purple-700 break-words line-clamp-1" title={stats.topDepartment || '-'}>
-              {stats.topDepartment || '-'}
-            </p>
-          </div>
+              {/* نسبة الإشغال */}
+              <div className={`p-4 rounded-xl text-center shadow-sm border ${stats.occupancy > 70 ? 'bg-red-50 border-red-200' :
+                  stats.occupancy > 40 ? 'bg-yellow-50 border-yellow-200' :
+                    'bg-green-50 border-green-200'
+                }`}>
+                <p className="text-sm text-gray-600 mb-1 font-semibold">الإشغال</p>
+                <p className={`font-bold text-xl ${stats.occupancy > 70 ? 'text-red-700' :
+                    stats.occupancy > 40 ? 'text-yellow-700' :
+                      'text-green-700'
+                  }`}>
+                  {stats.occupancy}%
+                </p>
+              </div>
 
-          {/* وقت الذروة */}
-          <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 shadow-sm text-center">
-            <p className="text-sm text-gray-600 mb-1 font-semibold">وقت الذروة</p>
-            <p className="font-bold text-xl text-orange-700" dir="rtl">
-              {stats.peakTime ? formatSingleTime(stats.peakTime) : '-'}
-            </p>
-          </div>
+              {/* عدد الحجوزات */}
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 font-semibold">الحجوزات</p>
+                <p className="font-bold text-xl text-gray-800 dark:text-gray-200">{stats.total}</p>
+              </div>
 
-        </div>
-      )}
+              {/* أكثر جهة */}
+              <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 shadow-sm text-center">
+                <p className="text-sm text-gray-600 mb-1 font-semibold">أكثر جهة</p>
+                <p className="font-bold text-lg text-purple-700 break-words line-clamp-1" title={stats.topDepartment || '-'}>
+                  {stats.topDepartment || '-'}
+                </p>
+              </div>
 
-      {/* قائمة */}
-      {!selectedDate ? (
-        <p className="text-center mt-6 text-gray-600 font-semibold bg-gray-100 p-4 rounded-xl">اختر تاريخاً لعرض الجدول اليومي</p>
-      ) : loading ? (
-        <p className="text-center text-gray-500 mt-6">جاري التحميل...</p>
-      ) : (
-        <div className="space-y-2 mt-6 transition-opacity duration-300 opacity-100">
-          {slots.map((slot) => {
-            const booking = engineBookings.find(
-              (b) => slot.start < b.end && slot.end > b.start
-            );
+              {/* وقت الذروة */}
+              <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 shadow-sm text-center">
+                <p className="text-sm text-gray-600 mb-1 font-semibold">وقت الذروة</p>
+                <p className="font-bold text-xl text-orange-700" dir="rtl">
+                  {stats.peakTime ? formatSingleTime(stats.peakTime) : '-'}
+                </p>
+              </div>
 
-            return (
-              <div
-                key={slot.start}
-                className={`p-4 rounded-xl flex justify-between items-center shadow-sm transition-all ${
-                  booking
-                    ? 'bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50'
-                    : 'bg-[#f0fdf4] dark:bg-green-950/30 border border-[#bbf7d0] dark:border-green-900/50'
-                }`}
-              >
-                {/* الوقت */}
-                <span className="font-extrabold text-gray-800 dark:text-gray-200 text-lg" dir="rtl">
-                  <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>
-                </span>
+            </div>
+          )}
 
-                {/* الحالة */}
-                {booking ? (
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-bold text-red-900 bg-red-100 px-3 py-1 rounded-full">
-                      ❌ محجوز ({booking.entity})
+          {/* قائمة */}
+          {!selectedDate ? (
+            <p className="text-center mt-6 text-gray-600 font-semibold bg-gray-100 p-4 rounded-xl">اختر تاريخاً لعرض الجدول اليومي</p>
+          ) : loading ? (
+            <p className="text-center text-gray-500 mt-6">جاري التحميل...</p>
+          ) : (
+            <div className="space-y-2 mt-6 transition-opacity duration-300 opacity-100">
+              {slots.map((slot) => {
+                const booking = engineBookings.find(
+                  (b) => slot.start < b.end && slot.end > b.start
+                );
+
+                return (
+                  <div
+                    key={slot.start}
+                    className={`p-4 rounded-xl flex justify-between items-center shadow-sm transition-all ${booking
+                        ? 'bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50'
+                        : 'bg-[#f0fdf4] dark:bg-green-950/30 border border-[#bbf7d0] dark:border-green-900/50'
+                      }`}
+                  >
+                    {/* الوقت */}
+                    <span className="font-extrabold text-gray-800 dark:text-gray-200 text-lg" dir="rtl">
+                      <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>
                     </span>
 
-                    <button
-                      onClick={() => deleteBooking(booking.id)}
-                      className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
-                    >
-                      إلغاء الحجز
-                    </button>
+                    {/* الحالة */}
+                    {booking ? (
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-bold text-red-900 bg-red-100 px-3 py-1 rounded-full">
+                          ❌ محجوز ({booking.entity})
+                        </span>
+
+                        <button
+                          onClick={() => deleteBooking(booking.id)}
+                          className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
+                        >
+                          إلغاء الحجز
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="!text-white text-sm font-bold bg-[#097834] px-4 py-1 rounded-full">✅ متاح</span>
+                    )}
                   </div>
-                ) : (
-                  <span className="!text-white text-sm font-bold bg-[#097834] px-4 py-1 rounded-full">✅ متاح</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      </>
+                );
+              })}
+            </div>
+          )}
+        </>
       ) : (
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 mt-6 animate-fade-in">
           {/* Queue Monitor Dashboard */}
@@ -597,16 +597,16 @@ export default function AdminPage() {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-[#097834] text-lg">إشعارات التطبيق (Push Notifications)</h3>
                     <div className="flex gap-2">
-                       <button 
-                          type="button" 
-                          disabled={triggeringReminders}
-                          onClick={triggerReminders} 
-                          className="bg-[#097834] hover:bg-[#065f2a] !text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {triggeringReminders ? '⏳ جاري التشغيل...' : '🔘 تشغيل التذكير الآن'}
-                       </button>
+                      <button
+                        type="button"
+                        disabled={triggeringReminders}
+                        onClick={triggerReminders}
+                        className="bg-[#097834] hover:bg-[#065f2a] !text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {triggeringReminders ? '⏳ جاري التشغيل...' : '🔘 تشغيل التذكير الآن'}
+                      </button>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
                     <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
                       <span className="text-sm font-bold text-gray-500 ml-2">حالة النظام:</span>
@@ -620,17 +620,17 @@ export default function AdminPage() {
                     </div>
 
                     <div className="flex flex-1 items-center gap-2 bg-blue-50 p-2 rounded-lg border border-blue-100">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="test_push_entity_id"
-                        placeholder="أدخل Entity ID للاختبار..." 
+                        placeholder="أدخل Entity ID للاختبار..."
                         className="flex-1 p-2 border border-blue-200 rounded-lg text-sm outline-none focus:border-blue-500"
                       />
                       <button
                         onClick={async () => {
                           const entityId = (document.getElementById('test_push_entity_id') as HTMLInputElement)?.value;
                           if (!entityId) return alert("الرجاء إدخال الـ Entity ID (UUID للجهة) لتجربة الإشعار");
-                          
+
                           const id = toast.loading('جاري الاختبار...');
                           try {
                             const res = await fetch("/api/send-notification", {
@@ -690,31 +690,32 @@ export default function AdminPage() {
               const p = dept.phone || '';
               let statusIcon = '🔴'; // Empty
               if (p) {
-                 if (p.startsWith('965') && (p.length === 11 || p.length === 12)) statusIcon = '🟢'; // Valid (Kuwait scale)
-                 else statusIcon = '🟡'; // Invalid format
+                if (p.startsWith('965') && (p.length === 11 || p.length === 12)) statusIcon = '🟢'; // Valid (Kuwait scale)
+                else statusIcon = '🟡'; // Invalid format
               }
 
               return (
-              <div key={idx} className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2 last:border-0 last:pb-0 hover:bg-gray-100 p-2 rounded-lg transition-colors">
-                <span className="font-bold text-gray-800 w-1/3">{dept.name}</span>
-                <div className="flex items-center justify-end w-2/3 gap-3">
-                  <span className="text-xl" title={statusIcon === '🟢' ? 'مفعل' : statusIcon === '🔴' ? 'غير مضاف' : 'غير صالح'}>{statusIcon}</span>
-                  <input 
-                    type="text" 
-                    defaultValue={dept.phone || ''} 
-                    maxLength={12}
-                    placeholder="رقم الهاتف (مثل: 965...)" 
-                    className="p-2 border border-gray-300 rounded-lg text-sm text-left w-52 focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none transition-all"
-                    dir="ltr"
-                    onBlur={(e) => {
-                      if (e.target.value !== dept.phone) {
-                        updateDeptPhone(dept.name, e.target.value);
-                      }
-                    }} 
-                  />
+                <div key={idx} className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2 last:border-0 last:pb-0 hover:bg-gray-100 p-2 rounded-lg transition-colors">
+                  <span className="font-bold text-gray-800 w-1/3">{dept.name}</span>
+                  <div className="flex items-center justify-end w-2/3 gap-3">
+                    <span className="text-xl" title={statusIcon === '🟢' ? 'مفعل' : statusIcon === '🔴' ? 'غير مضاف' : 'غير صالح'}>{statusIcon}</span>
+                    <input
+                      type="text"
+                      defaultValue={dept.phone || ''}
+                      maxLength={12}
+                      placeholder="رقم الهاتف (مثل: 965...)"
+                      className="p-2 border border-gray-300 rounded-lg text-sm text-left w-52 focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none transition-all"
+                      dir="ltr"
+                      onBlur={(e) => {
+                        if (e.target.value !== dept.phone) {
+                          updateDeptPhone(dept.name, e.target.value);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            )})}
+              )
+            })}
           </div>
 
           <h2 className="text-xl font-bold mb-4 text-[#097834]">إضافة رقم للمنظمين (لتذكير المواعيد)</h2>
@@ -728,7 +729,7 @@ export default function AdminPage() {
           {loadingSubs ? (
             <p className="text-center text-gray-500 py-6">جاري التحميل...</p>
           ) : subscribers.length === 0 ? (
-             <p className="text-center text-gray-500 bg-gray-50 p-6 rounded-xl border border-gray-200">لا توجد أرقام مسجلة للإشعارات</p>
+            <p className="text-center text-gray-500 bg-gray-50 p-6 rounded-xl border border-gray-200">لا توجد أرقام مسجلة للإشعارات</p>
           ) : (
             <div className="space-y-3">
               {subscribers.map(sub => (

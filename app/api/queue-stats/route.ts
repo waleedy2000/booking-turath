@@ -3,25 +3,32 @@ import { getSupabaseAdmin } from "@/utils/supabase-admin";
 const supabase = getSupabaseAdmin();
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('message_queue')
-    .select('status');
-    
-  if (error) {
-    return NextResponse.json({ pending: 0, sent: 0, failed: 0 });
-  }
+  try {
+    const { data, error } = await supabase
+      .from('message_queue')
+      .select('status');
+      
+    if (error) {
+      return NextResponse.json({ pending: 0, sent: 0, failed: 0 });
+    }
 
-  const stats = { pending: 0, sent: 0, failed: 0 };
-  for (const item of data || []) {
-    if (item.status === 'pending') stats.pending++;
-    else if (item.status === 'sent') stats.sent++;
-    else if (item.status === 'failed') stats.failed++;
-  }
-  const { data: recent, error: recentErr } = await supabase
-    .from('message_queue')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(20);
+    const stats = { pending: 0, sent: 0, failed: 0 };
+    for (const item of data || []) {
+      if (item.status === 'pending') stats.pending++;
+      else if (item.status === 'sent') stats.sent++;
+      else if (item.status === 'failed') stats.failed++;
+    }
+    const { data: recent, error: recentErr } = await supabase
+      .from('message_queue')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-  return NextResponse.json({ ...stats, recent: recent || [] });
+    return NextResponse.json({ ...stats, recent: recent || [] });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }

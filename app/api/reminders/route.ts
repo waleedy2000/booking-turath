@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 const supabaseAdmin = getSupabaseAdmin();
 import { dispatchEvent } from "@/lib/notification-dispatcher";
@@ -57,14 +58,13 @@ export async function GET() {
       });
     }
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
       processed: bookings?.length || 0,
     });
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    return Response.json(
-      { error: errorMessage },
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || 'Internal server error' },
       { status: 500 }
     );
   }

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
-const supabase = getSupabaseAdmin() as any;
 import { formatSingleTime } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
+import { processSmsQueue } from '@/lib/sms-service';
 
 export async function POST(request: Request) {
+  const supabase = getSupabaseAdmin() as any;
   try {
     const body = await request.json();
     const { 
@@ -188,10 +189,9 @@ export async function POST(request: Request) {
       }
 
       // Trigger worker asynchronously to flush out immediate confirmations
-      fetch(new URL('/api/send-queue', request.url), { 
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` }
-      }).catch(() => {});
+      // We do NOT use fetch to internal API routes to avoid "fetch failed" errors.
+      // We call the service directly but do not await it to keep the response fast.
+      processSmsQueue().catch(err => console.error("[ApiBookings] Background queue processing failed:", err));
 
     } catch (err) {
       console.error('Failed to schedule SMS:', err);
@@ -207,52 +207,76 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const date = searchParams.get('date')
-  const month = searchParams.get('month')
+  const supabase = getSupabaseAdmin();
+  try {
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+    const month = searchParams.get('month');
 
-  let query = supabase.from('bookings').select('*')
+    // Debug logging for GET request params
+    console.log(`[ApiBookings GET] Incoming request: date=${date}, month=${month}`);
 
-  if (date) {
-    query = query.eq('date', date)
-  }
+    let query = supabase.from('bookings').select('*');
 
-  if (month) {
-    try {
-      const [year, monthNum] = month.split('-')
-      const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate()
-      query = query.gte('date', `${month}-01`).lte('date', `${month}-${lastDay}`)
-    } catch {
-      query = query.gte('date', `${month}-01`).lte('date', `${month}-31`)
+    if (date) {
+      console.log(`[ApiBookings GET] Applying date filter: ${date}`);
+      query = query.eq('date', date);
+    } else if (month) {
+      console.log(`[ApiBookings GET] Applying month filter: ${month}`);
+      try {
+        const [year, monthNum] = month.split('-');
+        const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+        query = query.gte('date', `${month}-01`).lte('date', `${month}-${lastDay}`);
+      } catch (dateErr) {
+        console.warn(`[ApiBookings GET] Date parsing failed for month: ${month}`, dateErr);
+        query = query.gte('date', `${month}-01`).lte('date', `${month}-31`);
+      }
+    } else {
+      console.log(`[ApiBookings GET] No filters provided, fetching all.`);
     }
+
+    const { data, error } = await query.order('date', { ascending: true });
+
+    if (error) {
+      console.error("[ApiBookings GET] Supabase Error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log(`[ApiBookings GET] Success: Returned ${data?.length || 0} rows.`);
+    return NextResponse.json(data ?? []);
+  } catch (err: any) {
+    console.error("[ApiBookings GET] Fatal error:", err);
+    return NextResponse.json(
+      { error: err?.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  const { data, error } = await query.order('date', { ascending: true })
-
-  if (error) {
-    console.error("Supabase Error:", error);
-    return Response.json({ error: error.message }, { status: 500 })
-  }
-
-  return Response.json(data)
 }
 
 export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get('id')
+  const supabase = getSupabaseAdmin();
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
 
-  if (!id) {
-    return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 })
+    if (!id) {
+      return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 })
+    }
+
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: 'فشل الحذف' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  const { error } = await supabase
-    .from('bookings')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    return NextResponse.json({ error: 'فشل الحذف' }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true })
 }
