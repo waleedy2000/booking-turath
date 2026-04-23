@@ -30,17 +30,18 @@ export async function requestPermissionAndGetToken(phone?: string) {
   const messaging = getMessaging(app)
 
   // Listen for Foreground messages
+  // In foreground, the browser does NOT auto-display notifications.
+  // We must show them manually here.
   onMessage(messaging, (payload) => {
-    console.log('Foreground message (Data-Only):', payload)
+    console.log('[Foreground] Push message received:', payload)
 
-    const data = payload.data || {}
-    
-    // In foreground, we show a manual notification
-    new Notification(data.title || 'إشعار جديد', {
-      body: data.body,
-      icon: data.icon || '/icons/icon-192.png',
-      badge: data.badge || '/icons/icon-192.png',
-      tag: data.tag || 'default',
+    const title = payload.notification?.title || payload.data?.title || 'إشعار جديد'
+    const body = payload.notification?.body || payload.data?.body || ''
+
+    new Notification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      tag: payload.data?.type || 'default',
     })
   })
 

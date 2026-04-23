@@ -13,23 +13,15 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 // استقبال الإشعارات في الخلفية
+// ⚠️ IMPORTANT: With webpush.notification in the FCM payload, the browser
+// auto-displays the notification. We must NOT call showNotification() here
+// or the user will see the notification TWICE.
+// This handler is kept for logging/debugging only.
 messaging.onBackgroundMessage(function (payload) {
-  console.log("[firebase-messaging-sw.js] Received background message (Data-Only):", payload)
-
-  // Use data payload since we switched to data-only messages
-  const data = payload.data || {}
-  const notificationTitle = data.title || "إشعار جديد"
-  
-  const notificationOptions = {
-    body: data.body || "",
-    icon: data.icon || "/icons/icon-192.png",
-    badge: data.badge || "/icons/icon-192.png",
-    tag: data.tag || "default", // Prevents duplicates on some browsers
-    renotify: true, // Vibrate/ring even if tag is same
-    data: data, // Keep reference to data
-  }
-
-  return self.registration.showNotification(notificationTitle, notificationOptions)
+  console.log("[firebase-messaging-sw.js] Background message received:", payload)
+  console.log("[firebase-messaging-sw.js] Browser will auto-display via webpush.notification")
+  // Do NOT call self.registration.showNotification() here.
+  // The browser handles display via the webpush.notification payload.
 })
 
 self.addEventListener("notificationclick", function (event) {

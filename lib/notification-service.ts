@@ -108,12 +108,19 @@ export async function sendPushToPhones(
 
     const message = {
       tokens: tokensChunk,
-      data: {
-        title,
-        body,
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
-        tag: type, // Group notifications by type
+      // ❌ NO top-level `notification` — that causes auto-display + onBackgroundMessage = 2x
+      // ✅ Use webpush.notification so the browser shows exactly ONE notification
+      //    and onBackgroundMessage does NOT fire (it only fires for data-only)
+      data: { title, body, type },
+      webpush: {
+        notification: {
+          title,
+          body,
+          icon: "/icons/icon-192.png",
+          badge: "/icons/icon-192.png",
+          tag: `${type}-${departmentId || "general"}`,
+          renotify: true,
+        },
       },
     };
 
