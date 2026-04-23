@@ -1,6 +1,56 @@
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 
 /**
+ * ✅ NEW: Enqueue SMS messages for a list of phone numbers.
+ * Handles deduplication and scheduling.
+ */
+export async function enqueueSms(
+  phones: string[],
+  message: string,
+  messageType: string,
+  departmentId?: string,
+  scheduledAt?: string
+) {
+  const supabase = getSupabaseAdmin();
+  const scheduleTime = scheduledAt || new Date().toISOString();
+
+  const queueItems: any[] = [];
+
+  for (const phone of phones) {
+    // Dedup check: same phone + same message + same type
+    const { data: existing } = await supabase
+      .from('message_queue')
+      .select('id')
+      .eq('phone', phone)
+      .eq('message', message)
+      .eq('message_type', messageType)
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      queueItems.push({
+        phone,
+        message,
+        message_type: messageType,
+        department_id: departmentId || null,
+        status: 'pending',
+        attempts: 0,
+        scheduled_at: scheduleTime
+      });
+    }
+  }
+
+  if (queueItems.length > 0) {
+    const { error } = await supabase.from('message_queue').insert(queueItems);
+    if (error) {
+      console.error("[SmsService] Failed to enqueue SMS:", error);
+      throw error;
+    }
+  }
+
+  return { queued: queueItems.length };
+}
+
+/**
  * دالة لمعالجة طابور الرسائل (SMS Queue) بشكل مباشر عبر السيرفر
  * يتم الاتصال بـ Gateway الخارجي لتنفيذ الإرسال وتحديث الحالة في قاعدة البيانات
  */

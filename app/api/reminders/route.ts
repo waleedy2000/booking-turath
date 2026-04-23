@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 const supabaseAdmin = getSupabaseAdmin();
 import { dispatchEvent } from "@/lib/notification-dispatcher";
+import { formatTo12Hour } from "@/utils/timeFormat";
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export async function GET() {
     const futureMin = saudiFuture.getUTCMinutes().toString().padStart(2, '0');
     const futureTimeStr = `${futureHour}:${futureMin}`;
 
-    // 🎯 window ذكي + Atomic Update (يمنع الـ Race Conditions نهائياً)
+    // 🎯 Atomic Update: mark as sent + fetch in one query (prevents race conditions)
     const { data: bookings, error } = await supabaseAdmin
       .from("bookings")
       .update({ reminder_sent: true })
@@ -41,20 +42,49 @@ export async function GET() {
       .eq("reminder_sent", false)
       .gte("start_time", currentTimeStr)
       .lte("start_time", futureTimeStr)
-      .select("id, entity_id, date, start_time");
+      .select("id, department_id, department_name, date, start_time");
 
     if (error) throw error;
 
     for (const booking of bookings || []) {
       if (Date.now() - startTimeTracking > TIME_LIMIT) {
-        console.warn("[Reminders API] TIME_LIMIT reached, breaking loop to avoid function timeout.");
+        console.warn("[Reminders API] TIME_LIMIT reached, breaking loop.");
         break;
       }
-      
+
+      // Resolve department_id: use direct field or lookup from department_name
+      let deptId = booking.department_id;
+      let deptName = booking.department_name;
+
+      if (!deptId && deptName) {
+        const { data: dept } = await supabaseAdmin
+          .from("departments")
+          .select("id")
+          .eq("name", deptName)
+          .single();
+        deptId = dept?.id;
+      }
+
+      if (!deptId) {
+        console.warn(`[Reminders API] No department_id found for booking ${booking.id}`);
+        continue;
+      }
+
+      // Format date for messages
+      const [y, m, d] = booking.date.split('-');
+      const formattedDate = `${d}/${m}/${y}`;
+      const formattedStart = booking.start_time ? (() => { const f = formatTo12Hour(booking.start_time); return `${f.time} ${f.period}`; })() : '';
+
       await dispatchEvent({
         type: "BOOKING_REMINDER",
-        entity_id: booking.entity_id,
-        payload: { start_time: booking.start_time }
+        department_id: deptId,
+        department_name: deptName,
+        payload: {
+          start_time: booking.start_time,
+          formatted_date: formattedDate,
+          formatted_start: formattedStart,
+          reminder_minutes: minutes,
+        }
       });
     }
 

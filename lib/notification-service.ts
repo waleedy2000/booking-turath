@@ -46,38 +46,54 @@ async function sendWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
 }
 
 /**
- * دالة Service نقية تقوم بإرسال الإشعار لجهة معينة مع ضمان الحماية وتقسيم الدفعات، دون الحاجة للاتصال بـ HTTP APIs.
+ * ✅ NEW: Phone-based push notification sender.
+ * Sends push notifications to all devices registered with the given phone numbers.
  */
-export async function sendToEntityDirect(entity_id: string, title: string, body: string, type: string = "booking") {
-  // 1) Idempotency Check (Prevent duplicate triggers within 10 seconds)
-  const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
-  const { data: recentLogs } = await supabase
-    .from('notification_logs')
-    .select('id')
-    .eq('entity_id', entity_id)
-    .eq('title', title)
-    .gte('created_at', tenSecondsAgo)
-    .limit(1);
-
-  if (recentLogs && recentLogs.length > 0) {
-    console.log('[NotificationService] Idempotency block: Duplicate notification throttled (within 10s).');
-    return { success: true, message: 'Notification throttled (idempotency)', sent: 0, failed: 0 };
+export async function sendPushToPhones(
+  phones: string[],
+  title: string,
+  body: string,
+  type: string = "booking",
+  departmentId?: string
+) {
+  if (!phones.length) {
+    return { success: true, message: 'No phones provided', sent: 0, failed: 0 };
   }
 
-  // 2) Fetch tokens for targeted entity
+  // 1) Idempotency Check (within 10 seconds, same department + title)
+  if (departmentId) {
+    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+    const { data: recentLogs } = await supabase
+      .from('notification_logs')
+      .select('id')
+      .eq('entity_id', departmentId)
+      .eq('title', title)
+      .gte('created_at', tenSecondsAgo)
+      .limit(1);
+
+    if (recentLogs && recentLogs.length > 0) {
+      console.log('[NotificationService] Idempotency block: Duplicate notification throttled.');
+      return { success: true, message: 'Notification throttled (idempotency)', sent: 0, failed: 0 };
+    }
+  }
+
+  // 2) Fetch tokens by phone numbers
   const { data: tokensData, error: dbError } = await supabase
     .from('push_tokens')
-    .select('token, users!inner(entity_id)')
-    .eq('users.entity_id', entity_id);
+    .select('token')
+    .in('phone', phones)
+    .not('token', 'is', null);
 
   if (dbError) {
     console.error("[NotificationService] Database error fetching tokens:", dbError);
     return { success: false, error: "Failed to fetch tokens" };
   }
 
-  const tokens = tokensData?.map((t: { token: string }) => t.token) || [];
+  // Deduplicate tokens
+  const tokens: string[] = [...new Set<string>(tokensData?.map((t: { token: string }) => t.token) || [])];
 
   if (!tokens.length) {
+    console.log('[NotificationService] No tokens found for phones:', phones);
     return { success: true, message: 'No registered tokens found', sent: 0, failed: 0 };
   }
 
@@ -118,13 +134,13 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
       }
     });
 
-    // Rate Limiting / Quota Protection: Delay next chunk
+    // Rate Limiting / Quota Protection
     if (i + chunkSize < tokens.length) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 
-  // 4) Remove unregistered tokens from Supabase (Chunked for URL length limits)
+  // 4) Remove unregistered tokens from Supabase
   if (failedTokens.length > 0) {
     for (let i = 0; i < failedTokens.length; i += 200) {
       await supabase
@@ -134,14 +150,14 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
     }
   }
 
-  // 5) Log the notification with failure tracking
+  // 5) Log the notification
   const status = totalFailed > 0 ? (totalSent > 0 ? 'partial_failure' : 'failed') : 'sent';
   const errorReason = totalFailed > 0 ? `Failed tokens: ${totalFailed}` : null;
 
   await supabase
     .from('notification_logs')
     .insert({
-      entity_id,
+      entity_id: departmentId || null,
       title,
       body,
       status,
@@ -150,4 +166,35 @@ export async function sendToEntityDirect(entity_id: string, title: string, body:
     });
 
   return { success: true, sent: totalSent, failed: totalFailed };
+}
+
+/**
+ * @deprecated Kept for backward compatibility. Use sendPushToPhones instead.
+ */
+export async function sendToEntityDirect(entity_id: string, title: string, body: string, type: string = "booking") {
+  // Resolve phones from users table (legacy path)
+  const { data: usersData } = await supabase
+    .from('users')
+    .select('phone')
+    .eq('entity_id', entity_id);
+
+  const phones = usersData?.map((u: { phone: string }) => u.phone).filter(Boolean) || [];
+
+  if (!phones.length) {
+    // Fallback: try department_participants
+    const { data: participants } = await supabase
+      .from('department_participants')
+      .select('phone')
+      .eq('department_id', entity_id)
+      .eq('is_active', true);
+
+    const partPhones = participants?.map((p: { phone: string }) => p.phone) || [];
+    if (partPhones.length) {
+      return sendPushToPhones(partPhones, title, body, type, entity_id);
+    }
+
+    return { success: true, message: 'No phones found for entity', sent: 0, failed: 0 };
+  }
+
+  return sendPushToPhones(phones, title, body, type, entity_id);
 }

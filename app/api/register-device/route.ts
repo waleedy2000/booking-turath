@@ -9,7 +9,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
 
-  // 1️⃣ get or create user
+  // ✅ Phone-based token registration (unified identity)
+  // Upsert token with phone + update last_seen
+  const { error: tokenError } = await supabaseAdmin
+    .from("push_tokens")
+    .upsert(
+      {
+        token,
+        phone,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "token" }
+    );
+
+  if (tokenError) {
+    console.error("[RegisterDevice] Token upsert error:", tokenError);
+    return NextResponse.json({ error: tokenError.message }, { status: 500 });
+  }
+
+  // Also maintain legacy users table for backward compatibility
   let { data: user } = await supabaseAdmin
     .from("users")
     .select("*")
@@ -24,22 +42,18 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.warn("[RegisterDevice] User creation failed (non-blocking):", error.message);
+    } else {
+      user = newUser;
     }
-
-    user = newUser;
   }
 
-  // 2️⃣ save token
-  const { error: tokenError } = await supabaseAdmin
-    .from("push_tokens")
-    .upsert({
-      token,
-      user_id: user.id,
-    });
-
-  if (tokenError) {
-    return NextResponse.json({ error: tokenError.message }, { status: 500 });
+  // Update push_token with user_id if available (backward compat)
+  if (user) {
+    await supabaseAdmin
+      .from("push_tokens")
+      .update({ user_id: user.id })
+      .eq("token", token);
   }
 
   return NextResponse.json({ success: true });

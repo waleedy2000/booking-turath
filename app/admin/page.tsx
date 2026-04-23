@@ -58,10 +58,17 @@ export default function AdminPage() {
     enable_notifications: true,
     enable_booking_notifications: true
   })
-  const [departments, setDepartments] = useState<{ name: string, phone: string | null }[]>([])
+  const [departments, setDepartments] = useState<{ id?: string, name: string, phone: string | null, booking_contact_name?: string | null, booking_contact_phone?: string | null }[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [pushStats, setPushStats] = useState({ dailySent: 0, dailyFailed: 0, failureRate: 0 })
   const [triggeringReminders, setTriggeringReminders] = useState(false)
+
+  // Participants State
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
+  const [participants, setParticipants] = useState<{ id: string; name: string; phone: string; is_active: boolean }[]>([])
+  const [loadingParticipants, setLoadingParticipants] = useState(false)
+  const [newPartName, setNewPartName] = useState('')
+  const [newPartPhone, setNewPartPhone] = useState('')
 
   // جلب الحجوزات
   const fetchBookings = async () => {
@@ -114,6 +121,56 @@ export default function AdminPage() {
       if (statsData && !statsData.error) setPushStats(statsData);
     } catch (err) { console.error('fetchSettingsAndDepts error:', err) }
     setLoadingSettings(false)
+  }
+
+  const fetchParticipants = async (deptId: string) => {
+    setLoadingParticipants(true)
+    try {
+      const data = await fetchJson(`/api/participants?department_id=${deptId}`)
+      setParticipants(Array.isArray(data) ? data : [])
+    } catch (err) { console.error('fetchParticipants error:', err) }
+    setLoadingParticipants(false)
+  }
+
+  const addParticipant = async () => {
+    if (!selectedDeptId || !newPartPhone) return toast.error('الرقم مطلوب')
+    const id = toast.loading('جاري الإضافة...')
+    try {
+      await fetch('/api/participants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department_id: selectedDeptId, name: newPartName, phone: newPartPhone })
+      })
+      setNewPartName(''); setNewPartPhone('')
+      fetchParticipants(selectedDeptId)
+      toast.success('تمت الإضافة', { id })
+    } catch { toast.error('فشل', { id }) }
+  }
+
+  const deleteParticipant = async (partId: string) => {
+    if (!confirm('تأكيد حذف المشارك؟')) return
+    const id = toast.loading('جاري الحذف...')
+    try {
+      await fetch('/api/participants', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: partId })
+      })
+      if (selectedDeptId) fetchParticipants(selectedDeptId)
+      toast.success('تم الحذف', { id })
+    } catch { toast.error('فشل', { id }) }
+  }
+
+  const updateDeptContact = async (name: string, contactName: string, contactPhone: string) => {
+    try {
+      await fetch('/api/departments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, booking_contact_name: contactName, booking_contact_phone: contactPhone })
+      });
+      toast.success('تم حفظ بيانات الاتصال');
+      fetchSettingsAndDepts();
+    } catch { toast.error('فشل التحديث') }
   }
 
   useEffect(() => {
@@ -683,33 +740,51 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Departments UI */}
-          <h2 className="text-xl font-bold mb-4 text-[#097834]">أرقام الجهات (لاستقبال رسائل التأكيد)</h2>
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-8 max-h-64 overflow-y-auto custom-scrollbar">
+          {/* Departments UI — Contact Info */}
+          <h2 className="text-xl font-bold mb-4 text-[#097834]">بيانات الاتصال بالجهات (مسؤول الحجز)</h2>
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-8 max-h-80 overflow-y-auto custom-scrollbar">
             {departments.map((dept, idx) => {
-              const p = dept.phone || '';
-              let statusIcon = '🔴'; // Empty
-              if (p) {
-                if (p.startsWith('965') && (p.length === 11 || p.length === 12)) statusIcon = '🟢'; // Valid (Kuwait scale)
-                else statusIcon = '🟡'; // Invalid format
+              const cp = dept.booking_contact_phone || dept.phone || '';
+              let statusIcon = '🔴';
+              if (cp) {
+                if (cp.startsWith('965') && (cp.length === 11 || cp.length === 12)) statusIcon = '🟢';
+                else statusIcon = '🟡';
               }
 
               return (
-                <div key={idx} className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2 last:border-0 last:pb-0 hover:bg-gray-100 p-2 rounded-lg transition-colors">
-                  <span className="font-bold text-gray-800 w-1/3">{dept.name}</span>
-                  <div className="flex items-center justify-end w-2/3 gap-3">
-                    <span className="text-xl" title={statusIcon === '🟢' ? 'مفعل' : statusIcon === '🔴' ? 'غير مضاف' : 'غير صالح'}>{statusIcon}</span>
+                <div key={idx} className="mb-4 border-b border-gray-200 pb-3 last:border-0 last:pb-0 hover:bg-gray-100 p-3 rounded-lg transition-colors">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-gray-800">{dept.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl" title={statusIcon === '🟢' ? 'مفعل' : statusIcon === '🔴' ? 'غير مضاف' : 'غير صالح'}>{statusIcon}</span>
+                      {dept.id && <button type="button" onClick={() => { setSelectedDeptId(dept.id!); fetchParticipants(dept.id!) }} className="bg-blue-600 hover:bg-blue-700 !text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm">👥 المشاركين</button>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 items-center">
                     <input
                       type="text"
-                      defaultValue={dept.phone || ''}
+                      defaultValue={dept.booking_contact_name || ''}
+                      placeholder="اسم المسؤول"
+                      className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none"
+                      onBlur={(e) => {
+                        updateDeptContact(dept.name, e.target.value, dept.booking_contact_phone || dept.phone || '');
+                      }}
+                    />
+                    <input
+                      type="text"
+                      defaultValue={dept.booking_contact_phone || dept.phone || ''}
                       maxLength={12}
-                      placeholder="رقم الهاتف (مثل: 965...)"
-                      className="p-2 border border-gray-300 rounded-lg text-sm text-left w-52 focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none transition-all"
+                      placeholder="965xxxxxxxx"
+                      className="w-40 p-2 border border-gray-300 rounded-lg text-sm text-left focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none"
                       dir="ltr"
                       onBlur={(e) => {
-                        if (e.target.value !== dept.phone) {
-                          updateDeptPhone(dept.name, e.target.value);
+                        const phone = e.target.value.trim();
+                        if (phone && (!phone.startsWith('965') || phone.length < 11 || phone.length > 12)) {
+                          toast.error('الرقم يجب أن يبدأ بـ 965 ويكون 11-12 رقم');
+                          fetchSettingsAndDepts();
+                          return;
                         }
+                        updateDeptContact(dept.name, dept.booking_contact_name || '', phone);
                       }}
                     />
                   </div>
@@ -718,18 +793,81 @@ export default function AdminPage() {
             })}
           </div>
 
-          <h2 className="text-xl font-bold mb-4 text-[#097834]">إضافة رقم للمنظمين (لتذكير المواعيد)</h2>
+          {/* Participants Panel */}
+          {selectedDeptId && (
+            <div className="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-8 animate-fade-in">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-blue-800 text-lg">👥 مشاركو الجهة: {departments.find(d => d.id === selectedDeptId)?.name}</h3>
+                <button onClick={() => setSelectedDeptId(null)} className="text-gray-500 hover:text-red-500 font-bold text-sm">✕ إغلاق</button>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-2 mb-4">
+                <input type="text" placeholder="الاسم" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" value={newPartName} onChange={e => setNewPartName(e.target.value)} />
+                <input type="text" placeholder="965xxxxxxxx" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" dir="ltr" value={newPartPhone} onChange={e => setNewPartPhone(e.target.value)} />
+                <button onClick={addParticipant} className="bg-blue-600 !text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm">إضافة</button>
+              </div>
+
+              {/* Excel Import */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 bg-white border border-dashed border-blue-300 p-3 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                  <span className="text-sm font-bold text-blue-700">📎 استيراد من Excel (اسم، رقم)</span>
+                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const XLSX = (await import('xlsx'));
+                    const data = await file.arrayBuffer();
+                    const wb = XLSX.read(data);
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                    const items = rows.slice(1).filter((r: any) => r[1]).map((r: any) => ({ name: String(r[0] || ''), phone: String(r[1]).trim() }));
+                    if (!items.length) return toast.error('لا توجد بيانات صالحة');
+                    const id = toast.loading(`جاري استيراد ${items.length} مشارك...`);
+                    try {
+                      await fetch('/api/participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ department_id: selectedDeptId, participants: items })
+                      });
+                      toast.success(`تم استيراد ${items.length} مشارك`, { id });
+                      fetchParticipants(selectedDeptId);
+                    } catch { toast.error('فشل الاستيراد', { id }) }
+                    e.target.value = '';
+                  }} />
+                </label>
+              </div>
+
+              {loadingParticipants ? (
+                <p className="text-center text-gray-500 py-4">جاري التحميل...</p>
+              ) : participants.length === 0 ? (
+                <p className="text-center text-gray-500 bg-white p-4 rounded-lg border">لا يوجد مشاركين لهذه الجهة</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {participants.map(p => (
+                    <div key={p.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 hover:border-blue-200">
+                      <div>
+                        <p className="font-bold text-gray-800" dir="ltr">{p.phone}</p>
+                        <p className="text-xs text-gray-500">{p.name || 'بدون اسم'}</p>
+                      </div>
+                      <button onClick={() => deleteParticipant(p.id)} className="bg-red-500 hover:bg-red-600 !text-white px-3 py-1 rounded-lg text-xs font-bold">حذف</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Legacy Subscribers (backward compat) */}
+          <h2 className="text-xl font-bold mb-4 text-[#097834]">أرقام المنظمين (Legacy — SMS Broadcast)</h2>
           <div className="flex flex-col md:flex-row gap-3 mb-8">
-            <input type="text" placeholder="الاسم (مثال: مدير المركز)" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubName} onChange={e => setNewSubName(e.target.value)} />
-            <input type="text" placeholder="رقم الجوال (مثال: 96512345678)" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
+            <input type="text" placeholder="الاسم" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubName} onChange={e => setNewSubName(e.target.value)} />
+            <input type="text" placeholder="96512345678" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
             <button onClick={addSubscriber} className="bg-[#097834] !text-white px-6 py-3 rounded-xl font-bold hover:bg-[#075f28] transition-transform hover:scale-105">إضافة</button>
           </div>
 
-          <h2 className="text-xl font-bold mb-4 text-[#097834]">الأرقام المشتركة</h2>
           {loadingSubs ? (
             <p className="text-center text-gray-500 py-6">جاري التحميل...</p>
           ) : subscribers.length === 0 ? (
-            <p className="text-center text-gray-500 bg-gray-50 p-6 rounded-xl border border-gray-200">لا توجد أرقام مسجلة للإشعارات</p>
+            <p className="text-center text-gray-500 bg-gray-50 p-6 rounded-xl border border-gray-200">لا توجد أرقام مسجلة</p>
           ) : (
             <div className="space-y-3">
               {subscribers.map(sub => (

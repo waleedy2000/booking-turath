@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
-import { formatSingleTime } from '@/utils/timeFormat';
+import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
-import { processSmsQueue } from '@/lib/sms-service';
 
 export async function POST(request: Request) {
   const supabase = getSupabaseAdmin() as any;
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
     // 1. تحقق من رمز الـ PIN الخاص بالجهة
     const deptResult = await supabase
       .from('departments')
-      .select('id, pin_code, phone')
+      .select('id, pin_code, phone, booking_contact_phone')
       .eq('name', department)
       .single();
 
@@ -69,13 +68,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
     }
 
-    // 3. حفظ الحجز في قاعدة البيانات
+    // 3. حفظ الحجز في قاعدة البيانات (with department_id)
     try {
       const { error: insertError } = await (supabase as any)
         .from('bookings')
         .insert([
           {
             department_name: department,
+            department_id: deptData.id,
             date,
             start_time,
             end_time
@@ -91,110 +91,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
     }
 
-    // --- Push Notification (Event Driven) ---
+    // 4. Format time strings for notifications
+    const [y, m, d] = date.split('-');
+    const formattedDate = `${d}/${m}/${y}`;
+    const startFmt = formatTo12Hour(start_time);
+    const endFmt = formatTo12Hour(end_time);
+    const formattedStart = `${startFmt.time} ${startFmt.period}`;
+    const formattedEnd = `${endFmt.time} ${endFmt.period}`;
+
+    // Resolve contact phone: new field first, fallback to legacy
+    const contactPhone = deptData.booking_contact_phone || deptData.phone || null;
+
+    // 5. Dispatch unified notification event (handles both SMS + Push)
     try {
       await dispatchEvent({
         type: 'BOOKING_CREATED',
-        entity_id: deptData.id,
+        department_id: deptData.id,
+        department_name: department,
+        booking_contact_phone: contactPhone,
+        payload: {
+          date,
+          start_time,
+          end_time,
+          formatted_date: formattedDate,
+          formatted_start: formattedStart,
+          formatted_end: formattedEnd,
+        },
       });
-    } catch (pushErr) {
-      console.error('Failed to dispatch push notification event:', pushErr);
-    }
-
-    // --- Notification Scheduling Logic ---
-    const [y, m, d] = date.split('-');
-    const formattedDate = `${d}/${m}/${y}`;
-    const formattedTime12hStart = formatSingleTime(start_time);
-    const formattedTime12hEnd = formatSingleTime(end_time);
-    
-    try {
-      // Fetch settings
-      const { data: settings } = await supabase.from('settings').select('*').limit(1).single();
-      const enable_confirmation = settings?.enable_confirmation ?? true;
-      const enable_reminder = settings?.enable_reminder ?? true;
-      const reminder_minutes = settings?.reminder_minutes ?? 30;
-
-      const queueItems: any[] = [];
-      const currentUtc = new Date().toISOString();
-
-      // Confirmation Message (For Department)
-      if (enable_confirmation && deptData.phone) {
-        const confMsg = `📢 تأكيد حجز قاعة الاجتماعات\n\nتم تسجيل الحجز بنجاح:\n\n📍 الموقع: قاعة اجتماعات مبنى صباح الناصر\n📅 التاريخ: ${formattedDate}\n⏰ الوقت: ${formattedTime12hStart} – ${formattedTime12hEnd}\n🏢 الجهة: ${department}\n\nنرجو الالتزام بالموعد المحدد.`;
-        
-        // Prevent duplicate string
-        const { data: existingConf } = await supabase
-          .from('message_queue')
-          .select('id')
-          .eq('phone', deptData.phone)
-          .eq('message', confMsg)
-          .eq('message_type', 'confirmation')
-          .limit(1);
-
-        if (!existingConf || existingConf.length === 0) {
-          queueItems.push({
-            phone: deptData.phone,
-            message: confMsg,
-            message_type: 'confirmation',
-            status: 'pending',
-            attempts: 0,
-            scheduled_at: currentUtc
-          });
-        }
-      }
-
-      // Reminder Message (For Subscribers)
-      if (enable_reminder) {
-        // Calculate reminder time (Kuwait UTC+3 -> UTC)
-        const [hourStr, minStr] = start_time.split(':');
-        const h = parseInt(hourStr, 10);
-        const min = parseInt(minStr || "0", 10);
-        
-        // Construct Kuwiat time ISO string properly
-        const localDate = new Date(`${date}T${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:00+03:00`);
-        const reminderTime = new Date(localDate.getTime() - reminder_minutes * 60000);
-        const reminderUtc = reminderTime.toISOString();
-
-        const reminderMsg = `⏰ تذكير بموعد اجتماع\n\nلديك اجتماع بعد ${reminder_minutes} دقيقة:\n\n📍 قاعة اجتماعات مبنى صباح الناصر\n📅 اليوم: ${formattedDate}\n⏰ الوقت: ${formattedTime12hStart}\n\nيرجى الحضور في الوقت المحدد.`;
-
-        const { data: subs } = await supabase.from('subscribers').select('phone');
-        
-        if (subs && subs.length > 0) {
-          for (const sub of subs) {
-            const { data: existingRem } = await supabase
-              .from('message_queue')
-              .select('id')
-              .eq('phone', sub.phone)
-              .eq('message', reminderMsg)
-              .eq('message_type', 'reminder')
-              .limit(1);
-
-            if (!existingRem || existingRem.length === 0) {
-              queueItems.push({
-                phone: sub.phone,
-                message: reminderMsg,
-                message_type: 'reminder',
-                status: 'pending',
-                attempts: 0,
-                scheduled_at: reminderUtc
-              });
-            }
-          }
-        }
-      }
-
-      // Bulk insert messages
-      if (queueItems.length > 0) {
-        const { error: queueErr } = await supabase.from('message_queue').insert(queueItems);
-        if (queueErr) console.error("Failed to insert queue items:", queueErr);
-      }
-
-      // Trigger worker asynchronously to flush out immediate confirmations
-      // We do NOT use fetch to internal API routes to avoid "fetch failed" errors.
-      // We call the service directly but do not await it to keep the response fast.
-      processSmsQueue().catch(err => console.error("[ApiBookings] Background queue processing failed:", err));
-
-    } catch (err) {
-      console.error('Failed to schedule SMS:', err);
+    } catch (notifyErr) {
+      console.error('Failed to dispatch notification event:', notifyErr);
+      // Don't fail the booking if notifications fail
     }
 
     // النجاح
