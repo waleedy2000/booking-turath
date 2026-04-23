@@ -14,17 +14,22 @@ const messaging = firebase.messaging()
 
 // استقبال الإشعارات في الخلفية
 messaging.onBackgroundMessage(function (payload) {
-  console.log("[firebase-messaging-sw.js] Received background message ", payload)
+  console.log("[firebase-messaging-sw.js] Received background message (Data-Only):", payload)
 
-  const notificationTitle =
-    payload.notification?.title || payload.data?.title || "إشعار"
-
+  // Use data payload since we switched to data-only messages
+  const data = payload.data || {}
+  const notificationTitle = data.title || "إشعار جديد"
+  
   const notificationOptions = {
-    body: payload.notification?.body || payload.data?.body || "",
-    icon: "/icons/icon-192.png",
+    body: data.body || "",
+    icon: data.icon || "/icons/icon-192.png",
+    badge: data.badge || "/icons/icon-192.png",
+    tag: data.tag || "default", // Prevents duplicates on some browsers
+    renotify: true, // Vibrate/ring even if tag is same
+    data: data, // Keep reference to data
   }
 
-  self.registration.showNotification(notificationTitle, notificationOptions)
+  return self.registration.showNotification(notificationTitle, notificationOptions)
 })
 
 self.addEventListener("notificationclick", function (event) {

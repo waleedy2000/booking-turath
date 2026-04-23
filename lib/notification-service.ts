@@ -108,11 +108,13 @@ export async function sendPushToPhones(
 
     const message = {
       tokens: tokensChunk,
-      notification: { title, body },
-      data: { title, body },
-      webpush: {
-        notification: { title, body }
-      }
+      data: {
+        title,
+        body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: type, // Group notifications by type
+      },
     };
 
     const response = await sendWithRetry(() => 

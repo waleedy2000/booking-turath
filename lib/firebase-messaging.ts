@@ -31,11 +31,16 @@ export async function requestPermissionAndGetToken(phone?: string) {
 
   // Listen for Foreground messages
   onMessage(messaging, (payload) => {
-    console.log('Foreground message:', payload)
+    console.log('Foreground message (Data-Only):', payload)
 
-    new Notification(payload.notification?.title || payload.data?.title || 'إشعار', {
-      body: payload.notification?.body || payload.data?.body,
-      icon: '/icons/icon-192.png',
+    const data = payload.data || {}
+    
+    // In foreground, we show a manual notification
+    new Notification(data.title || 'إشعار جديد', {
+      body: data.body,
+      icon: data.icon || '/icons/icon-192.png',
+      badge: data.badge || '/icons/icon-192.png',
+      tag: data.tag || 'default',
     })
   })
 
