@@ -15,6 +15,7 @@ import usePWAInstall from '@/hooks/usePWAInstall'
 import { app } from "@/lib/firebase"
 import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
 import ForegroundNotificationToast from "@/components/ForegroundNotificationToast"
+import MonthlyInquiry from "@/components/MonthlyInquiry"
 
 dayjs.locale('ar')
 
@@ -430,6 +431,9 @@ export default function Home() {
         </button>
 
       </div>
+
+      {/* Monthly Inquiry UI Section */}
+      <MonthlyInquiry />
 
       {/* Loading Overlay */}
       {isLoading && (
