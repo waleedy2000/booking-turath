@@ -15,16 +15,39 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "حجز الغرف | جمعية إحياء التراث",
-  description: "نظام حجز غرف الاجتماعات في جمعية إحياء التراث الإسلامي",
+  title: "حجز قاعة صباح الناصر | جمعية إحياء التراث الإسلامي",
+  description: "نظام حجز قاعة الاجتماعات في مبنى صباح الناصر",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "حجز قاعة صباح الناصر | جمعية إحياء التراث الإسلامي",
+    description: "نظام حجز قاعة الاجتماعات في مبنى صباح الناصر",
+    url: "https://booking-turath.vercel.app",
+    siteName: "حجز القاعة",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "حجز القاعة - جمعية إحياء التراث الإسلامي",
+      },
+    ],
+    locale: "ar_KW",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "حجز قاعة صباح الناصر | جمعية إحياء التراث الإسلامي",
+    description: "نظام حجز قاعة الاجتماعات في مبنى صباح الناصر",
+    images: ["/og-image.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "الحجوزات",
-  },
-  icons: {
-    apple: "/icons/apple-touch-icon.png",
   },
 };
 
