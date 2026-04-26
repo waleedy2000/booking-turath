@@ -310,7 +310,7 @@ export default function Home() {
         )}
 
         {/* الأوقات */}
-        <div className="flex flex-nowrap overflow-x-auto gap-3 pb-4 pt-1 snap-x snap-mandatory scroll-smooth direction-rtl [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="grid grid-cols-2 md:flex md:flex-nowrap md:overflow-x-auto gap-3 pb-4 pt-1 md:snap-x md:snap-mandatory scroll-smooth direction-rtl [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {slots.map((slot) => {
             const isBooked = slot.status === "booked";
             return (
@@ -324,7 +324,7 @@ export default function Home() {
                     setIsAutoSelected(false)
                   }
                 }}
-                className={`time-btn flex-shrink-0 w-[140px] snap-center py-3 px-4 min-h-[48px] ${loadingTimes
+                className={`time-btn w-full min-w-0 md:flex-shrink-0 md:w-[140px] md:snap-center py-3 px-2 md:px-4 min-h-[48px] ${loadingTimes
                   ? '!bg-gray-100 !text-gray-400 cursor-wait'
                   : isBooked
                     ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'

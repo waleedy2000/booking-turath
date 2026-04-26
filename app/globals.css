@@ -59,14 +59,11 @@ body {
   padding: 10px 12px;
   font-weight: 600;
   transition: all 0.2s ease;
-  white-space: nowrap;
-  flex-wrap: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   line-height: 1.2;
-  min-width: 140px;
 }
 
 .time-btn:hover:not(:disabled) {

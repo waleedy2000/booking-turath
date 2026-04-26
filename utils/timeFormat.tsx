@@ -23,12 +23,12 @@ export function formatTimeRange(start: string, end: string) {
   const e = formatTo12Hour(end);
 
   return (
-    <span className="flex items-center justify-center gap-1.5" dir="rtl">
+    <span className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 w-full" dir="rtl">
       <span className="flex items-center">
         <span className="font-semibold">{s.time}</span>
         <span className="text-[10px] opacity-60 ms-[2px]">{s.period}</span>
       </span>
-      <ArrowLeft className="w-4 h-4 mx-0.5 opacity-50 stroke-2" />
+      <ArrowLeft className="w-4 h-4 mx-0.5 opacity-50 stroke-2 -rotate-90 md:rotate-0 flex-shrink-0" />
       <span className="flex items-center">
         <span className="font-semibold">{e.time}</span>
         <span className="text-[10px] opacity-60 ms-[2px]">{e.period}</span>
