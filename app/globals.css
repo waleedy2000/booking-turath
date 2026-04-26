@@ -98,15 +98,22 @@ body {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   border: 1px solid #eee;
   animation: scaleIn 0.2s ease;
+  width: max-content;
 }
 
 .rdp {
-  --rdp-cell-size: 40px;
+  --rdp-cell-size: 36px;
   --rdp-accent-color: #1f6f4a !important;
   margin: 0;
   color: #1f6f4a !important;
   width: 100% !important;
   direction: rtl;
+}
+
+@media (min-width: 768px) {
+  .rdp {
+    --rdp-cell-size: 40px;
+  }
 }
 
 .rdp-months,

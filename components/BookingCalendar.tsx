@@ -37,7 +37,7 @@ export default function BookingCalendar({
   const capacityPerDay = 7;
 
   return (
-    <div className="calendar-popup absolute mt-2 z-50 right-0 left-0 flex justify-center bg-white dark:bg-gray-900 shadow-2xl rounded-2xl overflow-hidden p-3 border border-gray-100 dark:border-gray-800">
+    <div className="calendar-popup absolute mt-2 z-50 left-1/2 -translate-x-1/2 w-max max-w-[calc(100vw-32px)] md:max-w-none bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
       <DayPicker
         mode="single"
         selected={selectedDateNormalized}

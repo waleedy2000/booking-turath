@@ -324,7 +324,7 @@ export default function Home() {
                     setIsAutoSelected(false)
                   }
                 }}
-                className={`time-btn w-full min-w-0 md:flex-shrink-0 md:w-[140px] md:snap-center py-3 px-2 md:px-4 min-h-[48px] ${loadingTimes
+                className={`time-btn w-full min-w-0 md:flex-shrink-0 md:w-[140px] md:snap-center py-4 md:py-3 px-3 md:px-4 min-h-[120px] md:min-h-[48px] ${loadingTimes
                   ? '!bg-gray-100 !text-gray-400 cursor-wait'
                   : isBooked
                     ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
