@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { ar } from "date-fns/locale";
 import dayjs from "dayjs";
-import { Booking, getDayStatus } from "@/services/availabilityEngine";
+import { Booking } from "@/services/availabilityEngine";
 import { formatTo12Hour } from '@/utils/timeFormat';
 import { ArrowLeft } from 'lucide-react';
 
@@ -36,7 +36,10 @@ export default function MonthlyInquiry() {
     fetchMonth();
   }, [currentMonth]);
 
-  const capacityPerDay = 7;
+  // استخراج التواريخ التي تحتوي على حجوزات فعلياً
+  const hasBookingDates = useMemo(() => {
+    return new Set(monthBookings.map(b => b.date));
+  }, [monthBookings]);
 
   const selectedDateStr = selectedDate ? dayjs(selectedDate).format('YYYY-MM-DD') : null;
   const selectedDayBookings = monthBookings.filter(b => b.date === selectedDateStr).sort((a, b) => {
@@ -46,8 +49,54 @@ export default function MonthlyInquiry() {
   });
 
   return (
-    <div className="mt-12 bg-white dark:bg-gray-900 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/50 p-6 md:p-8 max-w-md mx-auto border border-gray-100 dark:border-gray-800 transition-all duration-300">
+    <div className="mt-12 bg-white dark:bg-gray-900 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/50 p-4 sm:p-6 md:p-8 max-w-md mx-auto border border-gray-100 dark:border-gray-800 transition-all duration-300 inquiry-container">
       
+      {/* Scoped CSS to handle dot indicators and mobile sizing */}
+      <style jsx global>{`
+        .inquiry-calendar .rdp-day_booked .rdp-day_button::after {
+          content: "";
+          position: absolute;
+          bottom: 3px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 5px;
+          height: 5px;
+          background: #c9a227;
+          border-radius: 50%;
+          display: block !important;
+          z-index: 3;
+        }
+        
+        /* Ensure the dot is visible when selected or today */
+        .inquiry-calendar .rdp-selected .rdp-day_button::after {
+          background: #ffffff; /* Contrast on green background */
+        }
+        
+        /* Reset background colors from global partial/full styles for this component */
+        .inquiry-calendar .rdp-day_booked .rdp-day_button {
+          background: transparent !important;
+          color: inherit !important;
+        }
+        .inquiry-calendar .rdp-selected .rdp-day_button {
+          background: #1f6f4a !important;
+          color: white !important;
+        }
+        .inquiry-calendar .rdp-today .rdp-day_button {
+          border: 2px solid #c9a227 !important;
+          background: rgba(201, 162, 39, 0.08) !important;
+        }
+
+        /* Fix clipping of month name on narrow screens */
+        @media (max-width: 380px) {
+          .inquiry-calendar .rdp {
+            --rdp-cell-size: 34px;
+          }
+          .inquiry-calendar .rdp-caption_label {
+            font-size: 14px;
+          }
+        }
+      `}</style>
+
       {/* لمسة احترافية ذهبية */}
       <div className="w-12 h-1 bg-[#c9a227] mx-auto mb-6 rounded-full"></div>
 
@@ -57,16 +106,17 @@ export default function MonthlyInquiry() {
       </div>
 
       {/* Calendar Section */}
-      <div className="flex justify-center bg-[#f8f7f3] dark:bg-gray-800 p-4 rounded-xl border border-[#e6e2d8] dark:border-gray-700 mb-6 shadow-inner">
+      <div className="flex justify-center bg-[#f8f7f3] dark:bg-gray-800 p-2 sm:p-4 rounded-xl border border-[#e6e2d8] dark:border-gray-700 mb-6 shadow-inner inquiry-calendar">
         <DayPicker
           mode="single"
           selected={selectedDate}
           onSelect={(d) => d && setSelectedDate(d)}
           onMonthChange={setCurrentMonth}
           modifiers={{
-            available: (d) => getDayStatus(d, monthBookings, capacityPerDay) === "available",
-            partial: (d) => getDayStatus(d, monthBookings, capacityPerDay) === "partial",
-            full: (d) => getDayStatus(d, monthBookings, capacityPerDay) === "full"
+            booked: (d) => hasBookingDates.has(dayjs(d).format('YYYY-MM-DD'))
+          }}
+          modifiersClassNames={{
+            booked: "rdp-day_booked"
           }}
           components={{
             Chevron: (props: any) => 
