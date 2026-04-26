@@ -14,6 +14,7 @@ import Select from '@/components/ui/Select'
 import usePWAInstall from '@/hooks/usePWAInstall'
 import { app } from "@/lib/firebase"
 import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
+import ForegroundNotificationToast from "@/components/ForegroundNotificationToast"
 
 dayjs.locale('ar')
 
@@ -177,6 +178,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-6 font-[Cairo] pb-[max(100px,calc(100px+env(safe-area-inset-bottom)))]">
+
+      {/* In-app foreground notification toast */}
+      <ForegroundNotificationToast />
 
       {/* مودل طلب رقم الجوال لتفعيل الإشعارات */}
       {showPhoneModal && (

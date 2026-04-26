@@ -331,3 +331,19 @@ button {
 .dark ::-webkit-scrollbar-thumb {
   background-color: #374151;
 }
+
+/* Foreground notification toast slide-down animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

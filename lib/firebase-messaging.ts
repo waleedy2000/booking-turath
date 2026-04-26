@@ -29,23 +29,41 @@ export async function requestPermissionAndGetToken(phone?: string) {
 
   const messaging = getMessaging(app)
 
+  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+
   // Listen for Foreground messages
   // In foreground, the browser does NOT auto-display notifications.
-  // We must show them manually here.
+  // We must show them manually via the service worker registration.
+  // NOTE: `new Notification()` silently fails in mobile PWA standalone mode.
+  // Only `ServiceWorkerRegistration.showNotification()` works reliably.
   onMessage(messaging, (payload) => {
     console.log('[Foreground] Push message received:', payload)
 
     const title = payload.notification?.title || payload.data?.title || 'إشعار جديد'
     const body = payload.notification?.body || payload.data?.body || ''
+    const tag = payload.data?.type || 'default'
 
-    new Notification(title, {
-      body,
-      icon: '/icons/icon-192.png',
-      tag: payload.data?.type || 'default',
-    })
+    // 1) System notification via ServiceWorker (works in PWA standalone)
+    if (registration?.showNotification) {
+      registration.showNotification(title, {
+        body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag,
+      }).catch((err: unknown) => {
+        console.warn('[Foreground] showNotification failed:', err)
+      })
+    }
+
+    // 2) In-app toast fallback via custom DOM event
+    //    This ensures the user always sees something, even if
+    //    the system notification is suppressed by the browser.
+    window.dispatchEvent(
+      new CustomEvent('fcm-foreground', {
+        detail: { title, body, tag },
+      })
+    )
   })
-
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
 
   const token = await getToken(messaging, {
     vapidKey: VAPID_KEY,
