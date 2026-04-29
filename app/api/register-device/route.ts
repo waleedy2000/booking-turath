@@ -9,6 +9,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
 
+  // Phone normalization helper
+  const normalizePhone = (p: string) => {
+    let phone = p.trim();
+    if (!phone.startsWith('+')) {
+      if (phone.startsWith('965')) phone = '+' + phone;
+      else phone = '+965' + phone;
+    }
+    return phone;
+  };
+
+  const cleanPhone = normalizePhone(phone);
+
   // ✅ Phone-based token registration (unified identity)
   // Upsert token with phone + update last_seen
   const { error: tokenError } = await supabaseAdmin
@@ -16,7 +28,7 @@ export async function POST(req: Request) {
     .upsert(
       {
         token,
-        phone,
+        phone: cleanPhone,
         last_seen_at: new Date().toISOString(),
       },
       { onConflict: "token" }
@@ -31,13 +43,13 @@ export async function POST(req: Request) {
   let { data: user } = await supabaseAdmin
     .from("users")
     .select("*")
-    .eq("phone", phone)
+    .eq("phone", cleanPhone)
     .maybeSingle();
 
   if (!user) {
     const { data: newUser, error } = await supabaseAdmin
       .from("users")
-      .insert({ phone })
+      .insert({ phone: cleanPhone })
       .select()
       .single();
 

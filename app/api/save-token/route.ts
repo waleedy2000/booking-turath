@@ -20,8 +20,18 @@ export async function POST(req: Request) {
       last_seen_at: new Date().toISOString(),
     };
 
+    // Phone normalization helper
+    const normalizePhone = (p: string) => {
+      let phone = p.trim();
+      if (!phone.startsWith('+')) {
+        if (phone.startsWith('965')) phone = '+' + phone;
+        else phone = '+965' + phone;
+      }
+      return phone;
+    };
+
     // Add optional fields if provided in the payload
-    if (phone) upsertData.phone = phone;
+    if (phone) upsertData.phone = normalizePhone(phone);
     if (user_id) upsertData.user_id = user_id;
     if (entity_id) upsertData.entity_id = entity_id;
 

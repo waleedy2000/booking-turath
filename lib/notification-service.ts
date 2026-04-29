@@ -78,10 +78,19 @@ export async function sendPushToPhones(
   }
 
   // 2) Fetch tokens by phone numbers
+  // Normalize all phones to +965XXXXXXXX before querying to ensure format match
+  const normalizePhone = (p: string) => {
+    const trimmed = p.trim();
+    if (trimmed.startsWith('+')) return trimmed;
+    if (trimmed.startsWith('965')) return '+' + trimmed;
+    return '+965' + trimmed;
+  };
+  const normalizedPhones = phones.map(normalizePhone);
+
   const { data: tokensData, error: dbError } = await supabase
     .from('push_tokens')
     .select('token')
-    .in('phone', phones)
+    .in('phone', normalizedPhones)
     .not('token', 'is', null);
 
   if (dbError) {
