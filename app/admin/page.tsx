@@ -28,6 +28,19 @@ async function fetchJson(url: string) {
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '6616';
 
+const normalizePhone = (phone: string) => {
+  let p = phone.trim();
+  if (!p) return p;
+  if (!p.startsWith('+')) {
+    if (p.startsWith('965')) {
+      p = '+' + p;
+    } else {
+      p = '+965' + p;
+    }
+  }
+  return p;
+};
+
 const times = [
   '3:00 م', '3:30 م', '4:00 م',
   '4:30 م', '5:00 م', '5:30 م', '6:00 م'
@@ -139,7 +152,7 @@ export default function AdminPage() {
       await fetch('/api/participants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ department_id: selectedDeptId, name: newPartName, phone: newPartPhone })
+        body: JSON.stringify({ department_id: selectedDeptId, name: newPartName, phone: normalizePhone(newPartPhone) })
       })
       setNewPartName(''); setNewPartPhone('')
       fetchParticipants(selectedDeptId)
@@ -166,7 +179,7 @@ export default function AdminPage() {
       await fetch('/api/departments', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, booking_contact_name: contactName, booking_contact_phone: contactPhone })
+        body: JSON.stringify({ name, booking_contact_name: contactName, booking_contact_phone: normalizePhone(contactPhone) })
       });
       toast.success('تم حفظ بيانات الاتصال');
       fetchSettingsAndDepts();
@@ -196,9 +209,9 @@ export default function AdminPage() {
   }
 
   const updateDeptPhone = async (name: string, phone: string) => {
-    const cleanPhone = phone.trim();
-    if (cleanPhone && (!cleanPhone.startsWith('965') || cleanPhone.length < 11 || cleanPhone.length > 12)) {
-      toast.error('الرقم يجب أن يبدأ بـ 965 ويكون 11 أو 12 رقم');
+    const cleanPhone = normalizePhone(phone);
+    if (cleanPhone && (!cleanPhone.startsWith('+965') || cleanPhone.length < 12 || cleanPhone.length > 13)) {
+      toast.error('الرقم يجب أن يكون بصيغة 965XXXXXXXX');
       // fetchSettingsAndDepts to reset the value visually
       fetchSettingsAndDepts();
       return;
@@ -224,7 +237,7 @@ export default function AdminPage() {
       await fetch('/api/test-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: newSubPhone, type })
+        body: JSON.stringify({ phone: normalizePhone(newSubPhone), type })
       });
       toast.success('تم وضع الرسالة التجريبية في الطابور وتشغيله', { id: loadId });
       fetchSubscribers(); // To refresh queue stats
@@ -256,7 +269,7 @@ export default function AdminPage() {
       await fetch('/api/subscribers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSubName, phone: newSubPhone })
+        body: JSON.stringify({ name: newSubName, phone: normalizePhone(newSubPhone) })
       })
       setNewSubName('')
       setNewSubPhone('')
@@ -774,13 +787,13 @@ export default function AdminPage() {
                       type="text"
                       defaultValue={dept.booking_contact_phone || dept.phone || ''}
                       maxLength={12}
-                      placeholder="965xxxxxxxx"
+                      placeholder="55963037"
                       className="w-40 p-2 border border-gray-300 rounded-lg text-sm text-left focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none"
                       dir="ltr"
                       onBlur={(e) => {
-                        const phone = e.target.value.trim();
-                        if (phone && (!phone.startsWith('965') || phone.length < 11 || phone.length > 12)) {
-                          toast.error('الرقم يجب أن يبدأ بـ 965 ويكون 11-12 رقم');
+                        const phone = normalizePhone(e.target.value);
+                        if (phone && (!phone.startsWith('+965') || phone.length < 12 || phone.length > 13)) {
+                          toast.error('الرقم يجب أن يكون بصيغة 965XXXXXXXX');
                           fetchSettingsAndDepts();
                           return;
                         }
@@ -803,7 +816,7 @@ export default function AdminPage() {
 
               <div className="flex flex-col md:flex-row gap-2 mb-4">
                 <input type="text" placeholder="الاسم" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" value={newPartName} onChange={e => setNewPartName(e.target.value)} />
-                <input type="text" placeholder="965xxxxxxxx" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" dir="ltr" value={newPartPhone} onChange={e => setNewPartPhone(e.target.value)} />
+                <input type="text" placeholder="55963037" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" dir="ltr" value={newPartPhone} onChange={e => setNewPartPhone(e.target.value)} />
                 <button onClick={addParticipant} className="bg-blue-600 !text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm">إضافة</button>
               </div>
 
@@ -860,7 +873,7 @@ export default function AdminPage() {
           <h2 className="text-xl font-bold mb-4 text-[#097834]">أرقام المنظمين (Legacy — SMS Broadcast)</h2>
           <div className="flex flex-col md:flex-row gap-3 mb-8">
             <input type="text" placeholder="الاسم" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubName} onChange={e => setNewSubName(e.target.value)} />
-            <input type="text" placeholder="96512345678" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
+            <input type="text" placeholder="55963037" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
             <button onClick={addSubscriber} className="bg-[#097834] !text-white px-6 py-3 rounded-xl font-bold hover:bg-[#075f28] transition-transform hover:scale-105">إضافة</button>
           </div>
 

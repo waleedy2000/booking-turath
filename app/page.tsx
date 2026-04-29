@@ -194,20 +194,36 @@ export default function Home() {
             <input
               type="tel"
               dir="ltr"
-              placeholder="965XXXXXXXX"
+              placeholder="55963037"
               className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-lg font-bold outline-none focus:border-[#097834] focus:ring-2 focus:ring-[#097834]/20 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               value={phoneInput}
               onChange={(e) => setPhoneInput(e.target.value)}
             />
             <button
               onClick={() => {
-                if (phoneInput.trim().length < 8) {
+                let phone = phoneInput.trim();
+                if (!phone) {
+                  showToast('error', 'يرجى إدخال رقم الجوال');
+                  return;
+                }
+                
+                // التطبيع قبل الحفظ: إضافة +965 إذا لم تكن موجودة
+                if (!phone.startsWith('+')) {
+                  if (phone.startsWith('965')) {
+                    phone = '+' + phone;
+                  } else {
+                    phone = '+965' + phone;
+                  }
+                }
+
+                if (phone.length < 11) {
                   showToast('error', 'يرجى إدخال رقم صحيح');
                   return;
                 }
-                localStorage.setItem("phone", phoneInput.trim());
+
+                localStorage.setItem("phone", phone);
                 setShowPhoneModal(false);
-                requestPermissionAndGetToken(phoneInput.trim());
+                requestPermissionAndGetToken(phone);
                 showToast('success', 'تم حفظ الرقم وتفعيل الإشعارات');
               }}
               className="w-full bg-[#097834] hover:bg-[#075f28] !text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
