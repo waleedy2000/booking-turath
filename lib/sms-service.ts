@@ -1,5 +1,13 @@
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 
+function normalizePhone(phone: string): string {
+  if (!phone) return phone;
+  const trimmed = phone.trim();
+  if (trimmed.startsWith('+')) return trimmed;
+  if (trimmed.startsWith('965')) return '+' + trimmed;
+  return '+' + trimmed;
+}
+
 /**
  * ✅ NEW: Enqueue SMS messages for a list of phone numbers.
  * Handles deduplication and scheduling.
@@ -100,7 +108,7 @@ export async function processSmsQueue() {
         headers: headers,
         body: JSON.stringify({
           message: msg.message,
-          phoneNumbers: [msg.phone],
+          phoneNumbers: [normalizePhone(msg.phone)],
         })
       });
 
