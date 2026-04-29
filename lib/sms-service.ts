@@ -57,10 +57,21 @@ export async function enqueueSms(
 export async function processSmsQueue() {
   const supabase = getSupabaseAdmin();
   const gatewayUrl = process.env.SMS_GATEWAY_URL;
+  const login = process.env.SMS_GATEWAY_LOGIN;
+  const password = process.env.SMS_GATEWAY_PASSWORD;
 
   if (!gatewayUrl) {
     console.warn("[SmsService] SMS Gateway not configured, skipping.");
     return { success: true, processed: 0, message: 'Gateway not configured' };
+  }
+
+  if ((login && !password) || (!login && password)) {
+    console.error("[SmsService] Missing either SMS_GATEWAY_LOGIN or SMS_GATEWAY_PASSWORD. Authentication may fail.");
+  }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
+  if (login && password) {
+    headers['Authorization'] = 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
   }
 
   // جلب الرسائل التي لم يتم إرسالها بعد وحان وقت جدولتها
@@ -86,10 +97,10 @@ export async function processSmsQueue() {
     try {
       const res = await fetch(gatewayUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({
-          phone: msg.phone,
           message: msg.message,
+          phoneNumbers: [msg.phone],
         })
       });
 
