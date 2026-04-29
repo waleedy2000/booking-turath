@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
+import { processSmsQueue } from "@/lib/sms-service";
 const supabase = getSupabaseAdmin();
 
 export async function POST(request: Request) {
@@ -28,12 +29,22 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    fetch(new URL('/api/send-queue', request.url), { 
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` }
-    }).catch(() => {});
+    const result = await processSmsQueue();
+    let sentCount = 0;
+    let failedCount = 0;
+    
+    if (result.results) {
+      sentCount = result.results.filter((r: any) => r.status === 'sent').length;
+      failedCount = result.results.filter((r: any) => r.status !== 'sent').length;
+    }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      processed: result.processed,
+      sent: sentCount,
+      failed: failedCount,
+      message: result.message || 'تمت معالجة الطابور'
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
