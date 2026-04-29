@@ -502,13 +502,13 @@ export default function AdminPage() {
 
               {/* نسبة الإشغال */}
               <div className={`p-4 rounded-xl text-center shadow-sm border ${stats.occupancy > 70 ? 'bg-red-50 border-red-200' :
-                  stats.occupancy > 40 ? 'bg-yellow-50 border-yellow-200' :
-                    'bg-green-50 border-green-200'
+                stats.occupancy > 40 ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-green-50 border-green-200'
                 }`}>
                 <p className="text-sm text-gray-600 mb-1 font-semibold">الإشغال</p>
                 <p className={`font-bold text-xl ${stats.occupancy > 70 ? 'text-red-700' :
-                    stats.occupancy > 40 ? 'text-yellow-700' :
-                      'text-green-700'
+                  stats.occupancy > 40 ? 'text-yellow-700' :
+                    'text-green-700'
                   }`}>
                   {stats.occupancy}%
                 </p>
@@ -555,8 +555,8 @@ export default function AdminPage() {
                   <div
                     key={slot.start}
                     className={`p-4 rounded-xl flex justify-between items-center shadow-sm transition-all ${booking
-                        ? 'bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50'
-                        : 'bg-[#f0fdf4] dark:bg-green-950/30 border border-[#bbf7d0] dark:border-green-900/50'
+                      ? 'bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50'
+                      : 'bg-[#f0fdf4] dark:bg-green-950/30 border border-[#bbf7d0] dark:border-green-900/50'
                       }`}
                   >
                     {/* الوقت */}
@@ -787,7 +787,7 @@ export default function AdminPage() {
                       type="text"
                       defaultValue={dept.booking_contact_phone || dept.phone || ''}
                       maxLength={12}
-                      placeholder="55963037"
+                      placeholder="99999999"
                       className="w-40 p-2 border border-gray-300 rounded-lg text-sm text-left focus:border-[#097834] focus:ring-1 focus:ring-[#097834] outline-none"
                       dir="ltr"
                       onBlur={(e) => {
@@ -816,7 +816,7 @@ export default function AdminPage() {
 
               <div className="flex flex-col md:flex-row gap-2 mb-4">
                 <input type="text" placeholder="الاسم" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" value={newPartName} onChange={e => setNewPartName(e.target.value)} />
-                <input type="text" placeholder="55963037" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" dir="ltr" value={newPartPhone} onChange={e => setNewPartPhone(e.target.value)} />
+                <input type="text" placeholder="99999999" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-blue-500" dir="ltr" value={newPartPhone} onChange={e => setNewPartPhone(e.target.value)} />
                 <button onClick={addParticipant} className="bg-blue-600 !text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm">إضافة</button>
               </div>
 
@@ -873,7 +873,7 @@ export default function AdminPage() {
           <h2 className="text-xl font-bold mb-4 text-[#097834]">أرقام المنظمين (Legacy — SMS Broadcast)</h2>
           <div className="flex flex-col md:flex-row gap-3 mb-8">
             <input type="text" placeholder="الاسم" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubName} onChange={e => setNewSubName(e.target.value)} />
-            <input type="text" placeholder="55963037" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
+            <input type="text" placeholder="99999999" className="flex-1 p-3 border rounded-xl focus:outline-none focus:border-[#097834]" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
             <button onClick={addSubscriber} className="bg-[#097834] !text-white px-6 py-3 rounded-xl font-bold hover:bg-[#075f28] transition-transform hover:scale-105">إضافة</button>
           </div>
 

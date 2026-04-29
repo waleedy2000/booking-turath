@@ -194,7 +194,7 @@ export default function Home() {
             <input
               type="tel"
               dir="ltr"
-              placeholder="55963037"
+              placeholder="99999999"
               className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-lg font-bold outline-none focus:border-[#097834] focus:ring-2 focus:ring-[#097834]/20 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               value={phoneInput}
               onChange={(e) => setPhoneInput(e.target.value)}

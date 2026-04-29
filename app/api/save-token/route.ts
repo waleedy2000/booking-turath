@@ -5,7 +5,7 @@ const supabase = getSupabaseAdmin();
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { token } = body;
+    const { token, phone, user_id, entity_id } = body;
 
     if (!token) {
       return NextResponse.json(
@@ -14,33 +14,27 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if the token already exists to prevent duplicates
-    const { data: existingTokens, error: selectError } = await supabase
-      .from("push_tokens")
-      .select("id")
-      .eq("token", token);
+    // ✅ Use upsert with onConflict to prevent duplicates and update existing records
+    const upsertData: any = {
+      token,
+      last_seen_at: new Date().toISOString(),
+    };
 
-    if (selectError) {
-      console.error("Error querying push_tokens:", selectError);
+    // Add optional fields if provided in the payload
+    if (phone) upsertData.phone = phone;
+    if (user_id) upsertData.user_id = user_id;
+    if (entity_id) upsertData.entity_id = entity_id;
+
+    const { error: upsertError } = await supabase
+      .from("push_tokens")
+      .upsert(upsertData, { onConflict: "token" });
+
+    if (upsertError) {
+      console.error("Error upserting token in Supabase:", upsertError);
       return NextResponse.json(
-        { error: "Database error while validating token" },
+        { error: "Failed to save token" },
         { status: 500 }
       );
-    }
-
-    // Add the token only if it is not already stored
-    if (!existingTokens || existingTokens.length === 0) {
-      const { error: insertError } = await supabase
-        .from("push_tokens")
-        .insert([{ token }]);
-
-      if (insertError) {
-        console.error("Error saving token to Supabase:", insertError);
-        return NextResponse.json(
-          { error: "Failed to save token" },
-          { status: 500 }
-        );
-      }
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
