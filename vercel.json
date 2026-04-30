@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/reminders",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/send-queue",
-      "schedule": "*/5 * * * *"
+      "schedule": "5 6 * * *"
     }
   ]
 }
