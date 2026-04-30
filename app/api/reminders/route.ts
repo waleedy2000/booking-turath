@@ -6,7 +6,15 @@ import { formatTo12Hour } from "@/utils/timeFormat";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.warn("[Reminders API] Unauthorized access attempt");
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  console.log("[Reminders API] Reminders cron started");
+
   try {
     const startTimeTracking = Date.now();
     const TIME_LIMIT = 8000; // 8 seconds timeout wrapper for Vercel
@@ -34,6 +42,8 @@ export async function GET() {
     const futureMin = saudiFuture.getUTCMinutes().toString().padStart(2, '0');
     const futureTimeStr = `${futureHour}:${futureMin}`;
 
+    console.log(`[Reminders API] Checking bookings for ${todayStr} between ${currentTimeStr} and ${futureTimeStr}`);
+
     // 🎯 Atomic Update: mark as sent + fetch in one query (prevents race conditions)
     const { data: bookings, error } = await supabaseAdmin
       .from("bookings")
@@ -44,8 +54,15 @@ export async function GET() {
       .lte("start_time", futureTimeStr)
       .select("id, department_id, department_name, date, start_time");
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Reminders API] Database error:", error);
+      throw error;
+    }
 
+    const foundCount = bookings?.length || 0;
+    console.log(`[Reminders API] Found ${foundCount} bookings to remind`);
+
+    let sentCount = 0;
     for (const booking of bookings || []) {
       if (Date.now() - startTimeTracking > TIME_LIMIT) {
         console.warn("[Reminders API] TIME_LIMIT reached, breaking loop.");
@@ -66,7 +83,7 @@ export async function GET() {
       }
 
       if (!deptId) {
-        console.warn(`[Reminders API] No department_id found for booking ${booking.id}`);
+        console.warn(`[Reminders API] Skipping booking ${booking.id}: No department_id found`);
         continue;
       }
 
@@ -75,24 +92,33 @@ export async function GET() {
       const formattedDate = `${d}/${m}/${y}`;
       const formattedStart = booking.start_time ? (() => { const f = formatTo12Hour(booking.start_time); return `${f.time} ${f.period}`; })() : '';
 
-      await dispatchEvent({
-        type: "BOOKING_REMINDER",
-        department_id: deptId,
-        department_name: deptName,
-        payload: {
-          start_time: booking.start_time,
-          formatted_date: formattedDate,
-          formatted_start: formattedStart,
-          reminder_minutes: minutes,
-        }
-      });
+      try {
+        await dispatchEvent({
+          type: "BOOKING_REMINDER",
+          department_id: deptId,
+          department_name: deptName,
+          payload: {
+            start_time: booking.start_time,
+            formatted_date: formattedDate,
+            formatted_start: formattedStart,
+            reminder_minutes: minutes,
+          }
+        });
+        sentCount++;
+      } catch (dispatchErr) {
+        console.error(`[Reminders API] Failed to dispatch reminder for booking ${booking.id}:`, dispatchErr);
+      }
     }
+
+    console.log(`[Reminders API] Reminders cron finished. Processed: ${sentCount}/${foundCount}`);
 
     return NextResponse.json({
       success: true,
-      processed: bookings?.length || 0,
+      found: foundCount,
+      processed: sentCount,
     });
   } catch (err: any) {
+    console.error("[Reminders API] Fatal error:", err);
     return NextResponse.json(
       { error: err?.message || 'Internal server error' },
       { status: 500 }

@@ -400,16 +400,18 @@ export default function Home() {
                 showToast('error', data.message || data.error || 'حدث خطأ غير متوقع')
               } else {
                 showToast('success', (
-                  <div className="flex flex-col gap-1 text-sm">
-                    <p className="text-base font-bold !text-white mb-1">تم حجز القاعة</p>
-                    <div className="space-y-0.5 text-right" dir="rtl">
-                      <p className="!text-white/90">التاريخ: {date ? dayjs(date).format('DD / MM / YYYY') : "التاريخ غير متوفر"}</p>
-                      <p className="!text-white/90">الوقت: {(() => {
-                        const s = formatTo12Hour(activeSlot.start);
-                        const e = formatTo12Hour(activeSlot.end);
-                        return `${s.time} ${s.period} - ${e.time} ${e.period}`;
-                      })()}</p>
-                      <p className="!text-white/90">الجهة: {department}</p>
+                  <div className="flex flex-col gap-1 text-sm text-right" dir="rtl">
+                    <p className="text-base font-bold !text-white mb-1 text-center md:text-right">🎉 تم حجز القاعة</p>
+                    <div className="space-y-0.5">
+                      <p className="!text-white/90">📅 التاريخ: {date ? dayjs(date).format('DD / MM / YYYY') : "التاريخ غير متوفر"}</p>
+                      <p className="!text-white/90 whitespace-nowrap overflow-hidden text-ellipsis">
+                        ⏰ الوقت: {(() => {
+                          const s = formatTo12Hour(activeSlot.start);
+                          const e = formatTo12Hour(activeSlot.end);
+                          return `${s.time} ${s.period} - ${e.time} ${e.period}`;
+                        })()}
+                      </p>
+                      <p className="!text-white/90">🏢 الجهة: {department}</p>
                     </div>
                   </div>
                 ))
@@ -465,7 +467,7 @@ export default function Home() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
+          className={`fixed bottom-8 left-1/2 -translate-x-1/2 w-[88vw] max-w-[340px] px-5 py-3 rounded-xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
             }`}
         >
           {toast.message}
