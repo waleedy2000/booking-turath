@@ -47,8 +47,8 @@ export async function requestPermissionAndGetToken(phone?: string) {
     if (registration?.showNotification) {
       registration.showNotification(title, {
         body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
+        icon: '/branding/logo-white.svg',
+        badge: '/branding/logo-white.svg',
         tag,
       }).catch((err: unknown) => {
         console.warn('[Foreground] showNotification failed:', err)

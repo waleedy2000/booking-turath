@@ -8,7 +8,7 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/ar'
 import { Booking } from '../services/availabilityEngine'
 import { getAvailableSlots } from '../services/timeSlotsEngine'
-import { formatTimeRange, formatSingleTime } from '@/utils/timeFormat'
+import { formatTimeRange, formatSingleTime, formatTo12Hour } from '@/utils/timeFormat'
 import Logo from '@/components/branding/Logo'
 import Select from '@/components/ui/Select'
 import usePWAInstall from '@/hooks/usePWAInstall'
@@ -400,15 +400,16 @@ export default function Home() {
                 showToast('error', data.message || data.error || 'حدث خطأ غير متوقع')
               } else {
                 showToast('success', (
-                  <div className="flex flex-col gap-2 text-sm bg-green-600 p-1">
-                    <p className="text-xl mb-2 font-extrabold !text-white tracking-wide">🎉 تم حجز القاعة</p>
-                    <div className="space-y-1">
-                      <p className="!text-white/95 text-base">{date ? `📅 ${dayjs(date).format('DD / MM / YYYY')}` : "📅 التاريخ غير متوفر"}</p>
-                      <div className="!text-white/95 text-base font-bold flex items-center justify-end gap-1" dir="rtl">
-                        <span>⏰</span>
-                        {formatTimeRange(activeSlot.start, activeSlot.end)}
-                      </div>
-                      <p className="!text-white/95 text-base">🏢 {department}</p>
+                  <div className="flex flex-col gap-1 text-sm">
+                    <p className="text-base font-bold !text-white mb-1">تم حجز القاعة</p>
+                    <div className="space-y-0.5 text-right" dir="rtl">
+                      <p className="!text-white/90">التاريخ: {date ? dayjs(date).format('DD / MM / YYYY') : "التاريخ غير متوفر"}</p>
+                      <p className="!text-white/90">الوقت: {(() => {
+                        const s = formatTo12Hour(activeSlot.start);
+                        const e = formatTo12Hour(activeSlot.end);
+                        return `${s.time} ${s.period} - ${e.time} ${e.period}`;
+                      })()}</p>
+                      <p className="!text-white/90">الجهة: {department}</p>
                     </div>
                   </div>
                 ))
@@ -464,7 +465,7 @@ export default function Home() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
+          className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-2xl font-bold !text-white transition-all duration-300 z-50 animate-bounce ${toast.type === 'success' ? 'bg-green-600 border-2 border-green-500' : 'bg-red-500 border-2 border-red-400'
             }`}
         >
           {toast.message}

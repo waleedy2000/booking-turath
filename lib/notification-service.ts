@@ -125,8 +125,8 @@ export async function sendPushToPhones(
         notification: {
           title,
           body,
-          icon: "/icons/icon-192.png",
-          badge: "/icons/icon-192.png",
+          icon: "/branding/logo-white.svg",
+          badge: "/branding/logo-white.svg",
           tag: `${type}-${departmentId || "general"}`,
           renotify: true,
         },
