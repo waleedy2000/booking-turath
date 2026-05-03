@@ -100,8 +100,35 @@ export async function processSmsQueue() {
   }
 
   const results = [];
+  const now = Date.now();
 
   for (const msg of messages) {
+    // Expiry check for reminders (older than 60 minutes)
+    if (msg.message_type === 'reminder' && msg.scheduled_at) {
+      const scheduledTime = new Date(msg.scheduled_at).getTime();
+      const diffMinutes = (now - scheduledTime) / (1000 * 60);
+      
+      if (diffMinutes > 60) {
+        console.warn(`[SmsService] Expired stale reminder msg ${msg.id}`);
+        
+        const { error: updateError } = await supabase
+          .from('message_queue')
+          .update({ status: 'expired' })
+          .eq('id', msg.id);
+          
+        if (updateError) {
+          console.warn(`[SmsService] DB constraint rejected 'expired' status, falling back to 'failed' for msg ${msg.id}`);
+          await supabase
+            .from('message_queue')
+            .update({ status: 'failed', error: 'expired_reminder' })
+            .eq('id', msg.id);
+        }
+        
+        results.push({ id: msg.id, status: updateError ? 'failed' : 'expired' });
+        continue;
+      }
+    }
+
     try {
       const res = await fetch(gatewayUrl, {
         method: 'POST',
