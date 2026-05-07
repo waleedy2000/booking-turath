@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       .upsert(upsertData, { onConflict: "token" });
 
     if (upsertError) {
-      console.error("Error upserting token in Supabase:", upsertError);
+      console.error("Error upserting token in Supabase:", upsertError.message);
       return NextResponse.json(
         { error: "Failed to save token" },
         { status: 500 }
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
-    console.error("Error processing save-token request:", error);
+    console.error("Error processing save-token request:", error.message);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

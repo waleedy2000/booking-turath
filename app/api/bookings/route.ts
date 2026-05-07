@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       .eq('date', date);
 
     if (checkError) {
-      console.error("Error checking bookings:", checkError);
+      console.error("Error checking bookings:", checkError.message);
       return NextResponse.json({ error: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
     }
 
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         ]);
 
       if (insertError) {
-        console.error("Booking Insert Error:", insertError);
+        console.error("Booking Insert Error:", insertError.message);
         if (insertError.code === '23505') {
           return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
         }
@@ -166,7 +166,7 @@ export async function GET(request: Request) {
     const { data, error } = await query.order('date', { ascending: true });
 
     if (error) {
-      console.error("[ApiBookings GET] Supabase Error:", error);
+      console.error("[ApiBookings GET] Supabase Error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

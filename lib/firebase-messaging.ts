@@ -35,7 +35,7 @@ export async function requestPermissionAndGetToken(phone?: string) {
   // NOTE: `new Notification()` silently fails in mobile PWA standalone mode.
   // Only `ServiceWorkerRegistration.showNotification()` works reliably.
   onMessage(messaging, (payload) => {
-    console.log('[Foreground] Push message received:', payload)
+    console.log('[Foreground] Push message received');
 
     const title = payload.notification?.title || payload.data?.title || 'إشعار جديد'
     const body = payload.notification?.body || payload.data?.body || ''

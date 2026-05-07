@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     );
 
   if (tokenError) {
-    console.error("[RegisterDevice] Token upsert error:", tokenError);
+    console.error("[RegisterDevice] Token upsert error:", tokenError.message);
     return NextResponse.json({ error: tokenError.message }, { status: 500 });
   }
 

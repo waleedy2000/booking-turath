@@ -18,7 +18,7 @@ const messaging = firebase.messaging()
 // or the user will see the notification TWICE.
 // This handler is kept for logging/debugging only.
 messaging.onBackgroundMessage(function (payload) {
-  console.log("[firebase-messaging-sw.js] Background message received:", payload)
+  console.log("[firebase-messaging-sw.js] Background message received")
   console.log("[firebase-messaging-sw.js] Browser will auto-display via webpush.notification")
   // Do NOT call self.registration.showNotification() here.
   // The browser handles display via the webpush.notification payload.

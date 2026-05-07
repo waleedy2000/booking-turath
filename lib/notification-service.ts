@@ -94,7 +94,7 @@ export async function sendPushToPhones(
     .not('token', 'is', null);
 
   if (dbError) {
-    console.error("[NotificationService] Database error fetching tokens:", dbError);
+    console.error("[NotificationService] Database error fetching tokens:", dbError.message);
     return { success: false, error: "Failed to fetch tokens" };
   }
 
@@ -102,7 +102,7 @@ export async function sendPushToPhones(
   const tokens: string[] = [...new Set<string>(tokensData?.map((t: { token: string }) => t.token) || [])];
 
   if (!tokens.length) {
-    console.log('[NotificationService] No tokens found for phones:', phones);
+    console.log(`[NotificationService] No tokens found for ${phones.length} phone(s)`);
     return { success: true, message: 'No registered tokens found', sent: 0, failed: 0 };
   }
 
