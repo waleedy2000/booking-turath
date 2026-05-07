@@ -8,10 +8,7 @@ function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  console.log("Supabase URL exists:", !!url);
-  console.log("Supabase service role exists:", !!key);
-  console.log("Supabase service role prefix:", key ? key.slice(0, 8) : "missing");
-
+  // removed key logging for security
   if (!url || !key) {
     throw new Error("Missing Supabase environment variables");
   }

@@ -20,8 +20,7 @@ export async function POST(request: Request) {
     const start_time = st ?? start;
     const end_time = et ?? end;
 
-    // طباعة البيانات المستلمة للتأكد أثناء الاختبار (End-to-End)
-    console.log("📥 Received booking payload:", { department, pin, date, start_time, end_time });
+    // طباعة البيانات المستلمة للتأكد أثناء الاختبار (End-to-End) - تمت إزالتها لأسباب أمنية
 
     // Validate inputs
     if (!department || !pin || !date || !start_time || !end_time) {
@@ -84,6 +83,9 @@ export async function POST(request: Request) {
 
       if (insertError) {
         console.error("Booking Insert Error:", insertError);
+        if (insertError.code === '23505') {
+          return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
+        }
         return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
       }
     } catch (insertError) {

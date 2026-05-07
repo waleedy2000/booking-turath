@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import * as XLSX from "xlsx"
+import { useRouter } from 'next/navigation'
 import toast, { Toaster } from 'react-hot-toast'
 import { formatTimeRange, formatSingleTime } from '@/utils/timeFormat'
 import Logo from '@/components/branding/Logo'
@@ -26,7 +27,7 @@ async function fetchJson(url: string) {
   return text ? JSON.parse(text) : null;
 }
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '6616';
+// removed ADMIN_PASSWORD
 
 const normalizePhone = (phone: string) => {
   let p = phone.trim();
@@ -47,8 +48,8 @@ const times = [
 ];
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [password, setPassword] = useState('')
+  const router = useRouter()
+  // Auth state is now managed by middleware
 
   // Bookings State
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -317,46 +318,15 @@ export default function AdminPage() {
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <main className="min-h-screen flex items-center justify-center font-[Cairo] p-6">
-        <Toaster position="bottom-center" />
-        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow max-w-md w-full text-center border dark:border-gray-800">
-          <h1 className="text-2xl font-bold mb-6 text-[#097834]">دخول الإدارة</h1>
-          <input
-            type="password"
-            placeholder="كلمة المرور"
-            className="w-full p-3 border rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (password === ADMIN_PASSWORD) {
-                  setIsAuthenticated(true)
-                  toast.success('تم تسجيل الدخول بنجاح')
-                } else {
-                  toast.error('كلمة المرور غير صحيحة')
-                }
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              if (password === ADMIN_PASSWORD) {
-                setIsAuthenticated(true)
-                toast.success('تم تسجيل الدخول بنجاح')
-              } else {
-                toast.error('كلمة المرور غير صحيحة')
-              }
-            }}
-            className="bg-[#097834] hover:bg-[#075f28] transition-colors !text-white px-4 py-3 rounded-xl w-full font-bold"
-          >
-            دخول
-          </button>
-        </div>
-      </main>
-    )
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      toast.success('تم تسجيل الخروج')
+      router.push('/admin/login')
+    } catch (err) {
+      toast.error('فشل تسجيل الخروج')
+    }
   }
-
   // فلترة الجهة
   const filteredBookings = bookings.filter(b =>
     b.department_name.toLowerCase().includes(searchEntity.toLowerCase())
@@ -452,15 +422,23 @@ export default function AdminPage() {
             نظام الحجز
           </h1>
         </div>
-        {activeTab === 'bookings' && (
+        <div className="flex gap-2">
+          {activeTab === 'bookings' && (
+            <button
+              onClick={exportToExcel}
+              disabled={isExporting}
+              className={`bg-[#097834] !text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all hover:bg-[#075f28] ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isExporting ? 'جاري التصدير...' : '📊 تصدير Excel'}
+            </button>
+          )}
           <button
-            onClick={exportToExcel}
-            disabled={isExporting}
-            className={`bg-[#097834] !text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all hover:bg-[#075f28] ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={handleLogout}
+            className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all"
           >
-            {isExporting ? 'جاري التصدير...' : '📊 تصدير Excel'}
+            تسجيل خروج 🚪
           </button>
-        )}
+        </div>
       </div>
 
       <div className="flex gap-4 mb-6">

@@ -10,9 +10,7 @@ if (!VAPID_KEY) {
 }
 
 export async function requestPermissionAndGetToken(phone?: string) {
-  console.log("API KEY:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY)
-  console.log("VAPID:", VAPID_KEY)
-
+  // Keys are loaded securely
   const supported = await isSupported()
 
   if (!supported) {
@@ -70,8 +68,7 @@ export async function requestPermissionAndGetToken(phone?: string) {
     serviceWorkerRegistration: registration,
   })
 
-  console.log("FCM Token:", token)
-
+  // token logged securely if needed
   if (token) {
     // Use phone from param or localStorage
     const userPhone = phone || localStorage.getItem("phone")

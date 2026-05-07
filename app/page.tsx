@@ -24,7 +24,6 @@ const BookingCalendar = dynamic(() => import('../components/BookingCalendar'), {
 })
 
 export default function Home() {
-  console.log("Firebase connected:", app)
 
   const [showPhoneModal, setShowPhoneModal] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
