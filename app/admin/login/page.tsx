@@ -28,6 +28,7 @@ export default function AdminLoginPage() {
       if (res.ok) {
         toast.success('تم تسجيل الدخول بنجاح')
         router.push('/admin')
+        router.refresh()
       } else {
         toast.error(data.error || 'كلمة المرور غير صحيحة')
       }
