@@ -26,9 +26,8 @@ export default function AdminLoginPage() {
       const data = await res.json()
 
       if (res.ok) {
-        toast.success('تم تسجيل الدخول بنجاح')
-        router.push('/admin')
-        router.refresh()
+        toast.success('نجح الدخول')
+        window.location.href = '/admin'
       } else {
         toast.error(data.error || 'كلمة المرور غير صحيحة')
       }
