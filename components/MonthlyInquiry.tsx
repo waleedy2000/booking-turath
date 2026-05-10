@@ -53,37 +53,87 @@ export default function MonthlyInquiry() {
       
       {/* Scoped CSS to handle dot indicators and mobile sizing */}
       <style jsx global>{`
+        .inquiry-calendar .rdp {
+          color: #075f2a !important;
+        }
+
+        .inquiry-calendar .rdp-caption_label,
+        .inquiry-calendar .rdp-weekday {
+          color: #075f2a !important;
+          font-weight: 800 !important;
+        }
+
+        .inquiry-calendar .rdp-day_button {
+          color: #173b2a !important;
+          font-weight: 700 !important;
+          border: 1px solid transparent !important;
+        }
+
+        .inquiry-calendar .rdp-day_button:hover {
+          background: rgba(9, 120, 52, 0.10) !important;
+          color: #075f2a !important;
+        }
+
         .inquiry-calendar .rdp-day_booked .rdp-day_button::after {
           content: "";
           position: absolute;
           bottom: 3px;
           left: 50%;
           transform: translateX(-50%);
-          width: 5px;
-          height: 5px;
-          background: #c9a227;
+          width: 6px;
+          height: 6px;
+          background: #097834;
           border-radius: 50%;
           display: block !important;
           z-index: 3;
+          box-shadow: 0 0 0 2px rgba(9, 120, 52, 0.14);
         }
         
         /* Ensure the dot is visible when selected or today */
         .inquiry-calendar .rdp-selected .rdp-day_button::after {
-          background: #ffffff; /* Contrast on green background */
+          background: #ffffff;
+          box-shadow: 0 0 0 2px rgba(29, 29, 27, 0.18);
         }
         
         /* Reset background colors from global partial/full styles for this component */
         .inquiry-calendar .rdp-day_booked .rdp-day_button {
-          background: transparent !important;
-          color: inherit !important;
+          background: linear-gradient(180deg, rgba(9, 120, 52, 0.14), rgba(9, 120, 52, 0.08)) !important;
+          color: #064f25 !important;
+          border-color: rgba(9, 120, 52, 0.22) !important;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.50);
         }
         .inquiry-calendar .rdp-selected .rdp-day_button {
-          background: #1f6f4a !important;
-          color: white !important;
+          background: #C7AC25 !important;
+          color: #1D1D1B !important;
+          border-color: rgba(121, 91, 7, 0.32) !important;
+          box-shadow: 0 8px 18px rgba(199, 172, 37, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+          font-weight: 900 !important;
         }
         .inquiry-calendar .rdp-today .rdp-day_button {
-          border: 2px solid #c9a227 !important;
-          background: rgba(201, 162, 39, 0.08) !important;
+          border: 2px solid #C7AC25 !important;
+          background: rgba(199, 172, 37, 0.14) !important;
+          color: #1D1D1B !important;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+        }
+        .inquiry-calendar .rdp-today.rdp-selected .rdp-day_button {
+          background: #C7AC25 !important;
+          border-color: #C7AC25 !important;
+          color: #1D1D1B !important;
+        }
+
+        .dark .inquiry-calendar .rdp-caption_label,
+        .dark .inquiry-calendar .rdp-weekday,
+        .dark .inquiry-calendar .rdp-day_button {
+          color: #d7f2df !important;
+        }
+        .dark .inquiry-calendar .rdp-day_booked .rdp-day_button {
+          background: linear-gradient(180deg, rgba(9, 120, 52, 0.38), rgba(9, 120, 52, 0.22)) !important;
+          color: #e9fff0 !important;
+          border-color: rgba(9, 120, 52, 0.60) !important;
+        }
+        .dark .inquiry-calendar .rdp-selected .rdp-day_button,
+        .dark .inquiry-calendar .rdp-today.rdp-selected .rdp-day_button {
+          color: #1D1D1B !important;
         }
 
         /* Fix clipping of month name on narrow screens */
