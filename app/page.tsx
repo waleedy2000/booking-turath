@@ -23,6 +23,11 @@ const BookingCalendar = dynamic(() => import('../components/BookingCalendar'), {
   ssr: false,
 })
 
+type DepartmentOption = {
+  id?: string
+  name: string
+}
+
 export default function Home() {
 
   const [showPhoneModal, setShowPhoneModal] = useState(false)
@@ -50,6 +55,8 @@ export default function Home() {
   const [bookedTimes, setBookedTimes] = useState<string[]>([])
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [monthBookings, setMonthBookings] = useState<Booking[]>([])
+  const [departments, setDepartments] = useState<DepartmentOption[]>([])
+  const [loadingDepartments, setLoadingDepartments] = useState(true)
 
   const { install, isInstallable, isIOS, isStandalone, installed, showInstallPrompt } = usePWAInstall()
 
@@ -63,6 +70,25 @@ export default function Home() {
 
   const [isScrollingUp, setIsScrollingUp] = useState(true)
   const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      setLoadingDepartments(true)
+      try {
+        const res = await fetch('/api/departments')
+        if (!res.ok) throw new Error('Failed to fetch departments')
+        const data = await res.json()
+        setDepartments(Array.isArray(data) ? data.filter((dept: any) => dept?.name) : [])
+      } catch (err) {
+        console.error('Network error fetching departments', err)
+        setDepartments([])
+      } finally {
+        setLoadingDepartments(false)
+      }
+    }
+
+    fetchDepartments()
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -269,20 +295,8 @@ export default function Home() {
         <Select
           value={department}
           onChange={setDepartment}
-          placeholder="اختر الجهة"
-          options={[
-            { label: "مجلس الإدارة", value: "مجلس الإدارة" },
-            { label: "الكلمة الطيبة", value: "الكلمة الطيبة" },
-            { label: "الاستقطاعات", value: "الاستقطاعات" },
-            { label: "المشاريع", value: "المشاريع" },
-            { label: "ضبط الجودة", value: "ضبط الجودة" },
-            { label: "الإعلامية والتسويق", value: "الإعلامية والتسويق" },
-            { label: "الاستقبال", value: "الاستقبال" },
-            { label: "مركز التحفيظ", value: "مركز التحفيظ" },
-            { label: "اللجنة العلمية", value: "اللجنة العلمية" },
-            { label: "النشء والشباب", value: "النشء والشباب" },
-            { label: "الدعم الفني", value: "الدعم الفني" },
-          ]}
+          placeholder={loadingDepartments ? "جاري تحميل الجهات..." : "اختر الجهة"}
+          options={departments.map((dept) => ({ label: dept.name, value: dept.name }))}
         />
 
         {/* رمز الجهة */}

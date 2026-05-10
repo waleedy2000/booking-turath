@@ -16,6 +16,23 @@ type Booking = {
   time?: string
 }
 
+type Department = {
+  id?: string
+  name: string
+  phone: string | null
+  booking_contact_name?: string | null
+  booking_contact_phone?: string | null
+}
+
+type DepartmentManager = {
+  id: string
+  department_id: string
+  manager_name: string | null
+  manager_phone: string
+  role: string
+  is_active: boolean
+}
+
 import { getAvailableSlots } from '@/services/timeSlotsEngine'
 
 async function fetchJson(url: string) {
@@ -72,10 +89,14 @@ export default function AdminPage() {
     enable_notifications: true,
     enable_booking_notifications: true
   })
-  const [departments, setDepartments] = useState<{ id?: string, name: string, phone: string | null, booking_contact_name?: string | null, booking_contact_phone?: string | null }[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [pushStats, setPushStats] = useState({ dailySent: 0, dailyFailed: 0, failureRate: 0 })
   const [triggeringReminders, setTriggeringReminders] = useState(false)
+  const [newDeptName, setNewDeptName] = useState('')
+  const [newDeptPin, setNewDeptPin] = useState('')
+  const [newDeptContactName, setNewDeptContactName] = useState('')
+  const [newDeptContactPhone, setNewDeptContactPhone] = useState('')
 
   // Participants State
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
@@ -83,6 +104,11 @@ export default function AdminPage() {
   const [loadingParticipants, setLoadingParticipants] = useState(false)
   const [newPartName, setNewPartName] = useState('')
   const [newPartPhone, setNewPartPhone] = useState('')
+  const [selectedManagerDeptId, setSelectedManagerDeptId] = useState<string | null>(null)
+  const [managers, setManagers] = useState<DepartmentManager[]>([])
+  const [loadingManagers, setLoadingManagers] = useState(false)
+  const [newManagerName, setNewManagerName] = useState('')
+  const [newManagerPhone, setNewManagerPhone] = useState('')
 
   // جلب الحجوزات
   const fetchBookings = async () => {
@@ -144,6 +170,83 @@ export default function AdminPage() {
       setParticipants(Array.isArray(data) ? data : [])
     } catch (err) { console.error('fetchParticipants error:', err) }
     setLoadingParticipants(false)
+  }
+
+  const fetchManagers = async (deptId: string) => {
+    setLoadingManagers(true)
+    try {
+      const data = await fetchJson(`/api/department-managers?department_id=${deptId}`)
+      setManagers(Array.isArray(data) ? data : [])
+    } catch (err) { console.error('fetchManagers error:', err) }
+    setLoadingManagers(false)
+  }
+
+  const addDepartment = async () => {
+    if (!newDeptName.trim() || !newDeptPin.trim()) return toast.error('اسم القسم والرمز مطلوبان')
+    const id = toast.loading('جاري إضافة القسم...')
+    try {
+      const res = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newDeptName,
+          pin_code: newDeptPin,
+          booking_contact_name: newDeptContactName,
+          booking_contact_phone: newDeptContactPhone
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'فشل إضافة القسم')
+      setNewDeptName('')
+      setNewDeptPin('')
+      setNewDeptContactName('')
+      setNewDeptContactPhone('')
+      fetchSettingsAndDepts()
+      toast.success('تمت إضافة القسم', { id })
+    } catch (err: any) {
+      toast.error(err?.message || 'فشل إضافة القسم', { id })
+    }
+  }
+
+  const addManager = async () => {
+    if (!selectedManagerDeptId || !newManagerPhone.trim()) return toast.error('رقم المسؤول مطلوب')
+    const id = toast.loading('جاري إضافة المسؤول...')
+    try {
+      const res = await fetch('/api/department-managers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          department_id: selectedManagerDeptId,
+          manager_name: newManagerName,
+          manager_phone: newManagerPhone
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'فشل إضافة المسؤول')
+      setNewManagerName('')
+      setNewManagerPhone('')
+      fetchManagers(selectedManagerDeptId)
+      toast.success('تمت إضافة المسؤول', { id })
+    } catch (err: any) {
+      toast.error(err?.message || 'فشل إضافة المسؤول', { id })
+    }
+  }
+
+  const toggleManager = async (manager: DepartmentManager) => {
+    const id = toast.loading('جاري التحديث...')
+    try {
+      const res = await fetch('/api/department-managers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: manager.id, is_active: !manager.is_active })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'فشل تحديث المسؤول')
+      if (selectedManagerDeptId) fetchManagers(selectedManagerDeptId)
+      toast.success('تم التحديث', { id })
+    } catch (err: any) {
+      toast.error(err?.message || 'فشل تحديث المسؤول', { id })
+    }
   }
 
   const addParticipant = async () => {
@@ -731,6 +834,45 @@ export default function AdminPage() {
             )}
           </div>
 
+          {/* Add Department UI */}
+          <h2 className="text-xl font-bold mb-4 text-[#097834]">إضافة قسم جديد</h2>
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <input
+                type="text"
+                placeholder="اسم القسم"
+                className="p-3 border rounded-xl focus:outline-none focus:border-[#097834]"
+                value={newDeptName}
+                onChange={e => setNewDeptName(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="رمز PIN"
+                className="p-3 border rounded-xl focus:outline-none focus:border-[#097834]"
+                value={newDeptPin}
+                onChange={e => setNewDeptPin(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="اسم مسؤول الحجز"
+                className="p-3 border rounded-xl focus:outline-none focus:border-[#097834]"
+                value={newDeptContactName}
+                onChange={e => setNewDeptContactName(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="رقم مسؤول الحجز"
+                className="p-3 border rounded-xl focus:outline-none focus:border-[#097834]"
+                dir="ltr"
+                value={newDeptContactPhone}
+                onChange={e => setNewDeptContactPhone(e.target.value)}
+              />
+            </div>
+            <button onClick={addDepartment} className="bg-[#097834] !text-white px-5 py-2.5 rounded-xl font-bold hover:bg-[#075f28]">
+              إضافة القسم
+            </button>
+          </div>
+
           {/* Departments UI — Contact Info */}
           <h2 className="text-xl font-bold mb-4 text-[#097834]">بيانات الاتصال بالجهات (مسؤول الحجز)</h2>
           <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-8 max-h-80 overflow-y-auto custom-scrollbar">
@@ -738,7 +880,7 @@ export default function AdminPage() {
               const cp = dept.booking_contact_phone || dept.phone || '';
               let statusIcon = '🔴';
               if (cp) {
-                if (cp.startsWith('965') && (cp.length === 11 || cp.length === 12)) statusIcon = '🟢';
+                if ((cp.startsWith('+965') && cp.length === 12) || (cp.startsWith('965') && cp.length === 11)) statusIcon = '🟢';
                 else statusIcon = '🟡';
               }
 
@@ -748,6 +890,7 @@ export default function AdminPage() {
                     <span className="font-bold text-gray-800">{dept.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xl" title={statusIcon === '🟢' ? 'مفعل' : statusIcon === '🔴' ? 'غير مضاف' : 'غير صالح'}>{statusIcon}</span>
+                      {dept.id && <button type="button" onClick={() => { setSelectedManagerDeptId(dept.id!); fetchManagers(dept.id!) }} className="bg-[#097834] hover:bg-[#075f28] !text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm">المسؤولون</button>}
                       {dept.id && <button type="button" onClick={() => { setSelectedDeptId(dept.id!); fetchParticipants(dept.id!) }} className="bg-blue-600 hover:bg-blue-700 !text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm">👥 المشاركين</button>}
                     </div>
                   </div>
@@ -783,6 +926,42 @@ export default function AdminPage() {
               )
             })}
           </div>
+
+          {/* Managers Panel */}
+          {selectedManagerDeptId && (
+            <div className="bg-green-50 p-5 rounded-xl border border-green-200 mb-8 animate-fade-in">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-green-800 text-lg">مسؤولو القسم: {departments.find(d => d.id === selectedManagerDeptId)?.name}</h3>
+                <button onClick={() => setSelectedManagerDeptId(null)} className="text-gray-500 hover:text-red-500 font-bold text-sm">إغلاق</button>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-2 mb-4">
+                <input type="text" placeholder="اسم المسؤول" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-green-600" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} />
+                <input type="text" placeholder="99999999" className="flex-1 p-2 border rounded-lg focus:outline-none focus:border-green-600" dir="ltr" value={newManagerPhone} onChange={e => setNewManagerPhone(e.target.value)} />
+                <button onClick={addManager} className="bg-[#097834] !text-white px-4 py-2 rounded-lg font-bold hover:bg-[#075f28] text-sm">إضافة</button>
+              </div>
+
+              {loadingManagers ? (
+                <p className="text-center text-gray-500 py-4">جاري التحميل...</p>
+              ) : managers.length === 0 ? (
+                <p className="text-center text-gray-500 bg-white p-4 rounded-lg border">لا يوجد مسؤولون لهذا القسم</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {managers.map(manager => (
+                    <div key={manager.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 hover:border-green-200">
+                      <div>
+                        <p className="font-bold text-gray-800" dir="ltr">{manager.manager_phone}</p>
+                        <p className="text-xs text-gray-500">{manager.manager_name || 'بدون اسم'} - {manager.role}</p>
+                      </div>
+                      <button onClick={() => toggleManager(manager)} className={`${manager.is_active ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-600 hover:bg-green-700'} !text-white px-3 py-1 rounded-lg text-xs font-bold`}>
+                        {manager.is_active ? 'تعطيل' : 'تفعيل'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Participants Panel */}
           {selectedDeptId && (
