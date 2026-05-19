@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { ar } from "date-fns/locale"
 import dayjs from 'dayjs'
 import 'dayjs/locale/ar'
 import { Booking } from '../services/availabilityEngine'
-import { getAvailableSlots } from '../services/timeSlotsEngine'
+import { getAvailableSlots, TimeSlot } from '../services/timeSlotsEngine'
 import { formatTimeRange, formatSingleTime, formatTo12Hour } from '@/utils/timeFormat'
 import Logo from '@/components/branding/Logo'
 import Select from '@/components/ui/Select'
@@ -28,6 +28,12 @@ type DepartmentOption = {
   name: string
 }
 
+type RawBooking = Booking & {
+  start_time?: string
+  end_time?: string
+  time?: string
+}
+
 export default function Home() {
 
   const [showPhoneModal, setShowPhoneModal] = useState(false)
@@ -46,7 +52,8 @@ export default function Home() {
   const [dateObj, setDateObj] = useState<Date | undefined>()
   const date = dateObj ? dayjs(dateObj).format('YYYY-MM-DD') : ''
   const [showCalendar, setShowCalendar] = useState(false)
-  const [selectedTime, setSelectedTime] = useState('')
+  const [bookingDurationHours, setBookingDurationHours] = useState<1 | 2>(1)
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [isAutoSelected, setIsAutoSelected] = useState(false)
   const [department, setDepartment] = useState('')
   const [pin, setPin] = useState('')
@@ -176,31 +183,38 @@ export default function Home() {
     fetchMonth()
   }, [currentMonth])
 
-  const mappedBookings = monthBookings.map((b: any) => ({
+  const mappedBookings = useMemo(() => monthBookings.map((b: RawBooking) => ({
     date: b.date,
     start: b.start || b.start_time || b.time || '',
     end: b.end || b.end_time || (b.time ? String(Number(b.time.split(':')[0]) + 2).padStart(2, '0') + ':' + b.time.split(':')[1] : '')
-  }));
+  })), [monthBookings]);
 
-  const slots = getAvailableSlots(date, mappedBookings);
+  const slots = useMemo(
+    () => getAvailableSlots(date, mappedBookings, [bookingDurationHours]),
+    [date, mappedBookings, bookingDurationHours]
+  );
 
   useEffect(() => {
     if (date && !loadingTimes) {
-      const activeSlot = slots.find(s => s.start === selectedTime);
-      if (!selectedTime || (activeSlot && activeSlot.status === 'booked')) {
+      const activeSlot = selectedSlot ? slots.find(s => 
+        s.start === selectedSlot.start &&
+        s.end === selectedSlot.end &&
+        s.durationHours === selectedSlot.durationHours
+      ) : null;
+      if (!selectedSlot || !activeSlot || activeSlot.status === 'booked') {
         const firstAvailable = slots.find(s => s.status === 'available');
         if (firstAvailable) {
-          setSelectedTime(firstAvailable.start);
+          setSelectedSlot(firstAvailable);
           setIsAutoSelected(true);
         } else {
-          setSelectedTime('');
+          setSelectedSlot(null);
           setIsAutoSelected(false);
         }
       }
     }
-  }, [date, monthBookings, loadingTimes])
+  }, [date, loadingTimes, selectedSlot, slots])
 
-  const isFormValid = department && pin && date && selectedTime
+  const isFormValid = department && pin && date && selectedSlot
 
   return (
     <main className="min-h-screen p-6 font-[Cairo] pb-[max(100px,calc(100px+env(safe-area-inset-bottom)))]">
@@ -340,38 +354,70 @@ export default function Home() {
         )}
 
         {/* الأوقات */}
-        <div className="grid grid-cols-2 md:flex md:flex-nowrap md:overflow-x-auto gap-3 pb-4 pt-1 md:snap-x md:snap-mandatory scroll-smooth direction-rtl [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mb-4">
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f8f7f3] dark:bg-gray-800 p-1 border border-[#e6e2d8] dark:border-gray-700">
+            {([1, 2] as const).map((duration) => (
+              <button
+                key={duration}
+                type="button"
+                onClick={() => {
+                  setBookingDurationHours(duration)
+                  setIsAutoSelected(false)
+                }}
+                className={`rounded-lg py-2.5 px-3 text-sm font-bold transition-all ${bookingDurationHours === duration
+                  ? 'bg-[#097834] !text-white shadow-sm'
+                  : 'bg-transparent text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-900'
+                }`}
+              >
+                {duration === 1 ? 'ساعة واحدة' : 'ساعتان'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 pb-4 pt-1 direction-rtl">
           {slots.map((slot) => {
             const isBooked = slot.status === "booked";
             return (
               <button
-                key={slot.start}
+                key={`${slot.start}-${slot.end}`}
                 disabled={isBooked || loadingTimes}
                 type="button"
                 onClick={() => {
                   if (!isBooked) {
-                    setSelectedTime(slot.start)
+                    setSelectedSlot(slot)
                     setIsAutoSelected(false)
                   }
                 }}
-                className={`time-btn w-full min-w-0 md:flex-shrink-0 md:w-[140px] md:snap-center py-4 md:py-3 px-3 md:px-4 min-h-[120px] md:min-h-[48px] ${loadingTimes
+                className={`time-btn w-full min-w-0 py-4 md:py-4 px-3 md:px-4 min-h-[120px] md:min-h-[88px] ${loadingTimes
                   ? '!bg-gray-100 !text-gray-400 cursor-wait'
                   : isBooked
                     ? '!bg-gray-300 !text-gray-500 cursor-not-allowed !transform-none !shadow-none opacity-60'
-                    : selectedTime === slot.start
+                    : selectedSlot?.start === slot.start && selectedSlot?.end === slot.end
                       ? 'active scale-105 shadow-md border-transparent'
                       : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200'
                   }`}
               >
-                {loadingTimes ? '...' : <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>}
+                {loadingTimes ? '...' : (
+                  <span dir="rtl" className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-2 leading-none">
+                    <span className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-lg md:text-base font-extrabold">{formatSingleTime(slot.start)}</span>
+                    </span>
+                    <span className="text-2xl leading-none opacity-70 md:hidden">↓</span>
+                    <span className="hidden md:inline text-lg leading-none opacity-70">←</span>
+                    <span className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-lg md:text-base font-extrabold">{formatSingleTime(slot.end)}</span>
+                    </span>
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {selectedTime && (
+        {selectedSlot && (
           <div className="mt-4 p-5 bg-[#f8f7f3] dark:bg-gray-800 border border-[#e6e2d8] dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 font-bold text-center shadow-sm transition-all duration-300 animate-fade-in">
-            {date ? `📅 ${dayjs(date).format('DD / MM / YYYY')}` : "📅 اختر التاريخ"} — <span dir="rtl">⏰ {formatSingleTime(selectedTime)}</span> {department && `— 🏢 ${department}`}
+            {date ? `📅 ${dayjs(date).format('DD / MM / YYYY')}` : "📅 اختر التاريخ"} — <span dir="rtl">⏰ من {formatSingleTime(selectedSlot.start)} إلى {formatSingleTime(selectedSlot.end)}</span> {department && `— 🏢 ${department}`}
             {isAutoSelected && (
               <p className="text-xs text-[#097834] mt-2 font-semibold">
                 ✔ تم اختيار أقرب وقت متاح تلقائيًّا
@@ -386,12 +432,16 @@ export default function Home() {
           onClick={async () => {
             setToast(null)
             if (!date) return showToast('error', 'الرجاء اختيار التاريخ')
-            if (!selectedTime) return showToast('error', 'الرجاء اختيار الوقت')
+            if (!selectedSlot) return showToast('error', 'الرجاء اختيار الوقت')
             if (!department) return showToast('error', 'الرجاء اختيار الجهة')
             if (!pin) return showToast('error', 'الرجاء إدخال رمز التحقق')
 
-            const activeSlot = slots.find(s => s.start === selectedTime);
-            if (!activeSlot) return showToast('error', 'الرجاء اختيار وقت متاح');
+            const activeSlot = slots.find(s =>
+              s.start === selectedSlot.start &&
+              s.end === selectedSlot.end &&
+              s.durationHours === selectedSlot.durationHours
+            );
+            if (!activeSlot || activeSlot.status === 'booked') return showToast('error', 'الرجاء اختيار وقت متاح');
 
             setIsLoading(true)
             try {
@@ -434,7 +484,7 @@ export default function Home() {
                 setMonthBookings(prev => [...prev, newBooking]);
 
                 // تفريغ الحقول المطلوبة مباشرة لتجنب تكرار الحجز
-                setSelectedTime('');
+                setSelectedSlot(null);
                 setPin('');
                 setDateObj(undefined);
                 setIsAutoSelected(false);

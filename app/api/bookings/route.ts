@@ -3,6 +3,15 @@ import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
 
+function timeToMinutes(value: string): number | null {
+  if (!/^\d{2}:\d{2}$/.test(value)) return null;
+
+  const [hours, minutes] = value.split(':').map(Number);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  return hours * 60 + minutes;
+}
+
 export async function POST(request: Request) {
   const supabase = getSupabaseAdmin() as any;
   try {
@@ -31,6 +40,31 @@ export async function POST(request: Request) {
     }
 
     // 1. تحقق من رمز الـ PIN الخاص بالجهة
+    const startMinutes = timeToMinutes(start_time);
+    const endMinutes = timeToMinutes(end_time);
+
+    if (startMinutes === null || endMinutes === null) {
+      return NextResponse.json(
+        { success: false, message: 'صيغة الوقت غير صحيحة' },
+        { status: 400 }
+      );
+    }
+
+    const durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes <= 0) {
+      return NextResponse.json(
+        { success: false, message: 'وقت نهاية الحجز يجب أن يكون بعد وقت البداية' },
+        { status: 400 }
+      );
+    }
+
+    if (![60, 120].includes(durationMinutes)) {
+      return NextResponse.json(
+        { success: false, message: 'مدة الحجز يجب أن تكون ساعة واحدة أو ساعتين فقط' },
+        { status: 400 }
+      );
+    }
+
     const deptResult = await supabase
       .from('departments')
       .select('id, pin_code, phone, booking_contact_phone')

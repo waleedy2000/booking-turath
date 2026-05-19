@@ -1,6 +1,7 @@
 export type TimeSlot = {
   start: string; // "09:00"
   end: string;   // "11:00"
+  durationHours: 1 | 2;
   status?: "available" | "booked";
 };
 
@@ -20,18 +21,23 @@ export const START_TIMES = [
   "20:00",
 ];
 
-function addDuration(start: string, hours: number = 2): string {
+export const DURATION_HOURS: Array<1 | 2> = [1, 2];
+
+function addDuration(start: string, hours: 1 | 2): string {
   const [h, m] = start.split(":").map(Number);
   const date = new Date();
   date.setHours(h + hours, m);
   return date.toTimeString().slice(0, 5);
 }
 
-function buildSlots(): TimeSlot[] {
-  return START_TIMES.map((start) => ({
-    start,
-    end: addDuration(start),
-  }));
+function buildSlots(durations: Array<1 | 2> = [2]): TimeSlot[] {
+  return START_TIMES.flatMap((start) =>
+    durations.map((durationHours) => ({
+      start,
+      end: addDuration(start, durationHours),
+      durationHours,
+    }))
+  );
 }
 
 function getBookingsForDay(date: string, bookings: Booking[]) {
@@ -49,9 +55,10 @@ function isSlotBooked(slot: TimeSlot, bookings: Booking[]) {
 
 export function getAvailableSlots(
   date: string,
-  bookings: Booking[]
-) {
-  const slots = buildSlots();
+  bookings: Booking[],
+  durations?: Array<1 | 2>
+): TimeSlot[] {
+  const slots = buildSlots(durations);
   const dayBookings = getBookingsForDay(date, bookings);
 
   return slots.map((slot) => {
