@@ -1,6 +1,6 @@
 import { sendPushToPhones } from "@/lib/notification-service";
 import { enqueueSms, processSmsQueue } from "@/lib/sms-service";
-import { getParticipantPhones } from "@/lib/participant-service";
+import { getParticipantPhones, normalizeKuwaitiPhone } from "@/lib/participant-service";
 import { getSettings } from "@/lib/settings-service";
 import { formatTo12Hour } from "@/utils/timeFormat";
 
@@ -45,32 +45,14 @@ export async function dispatchEvent(event: EventType) {
 async function handleBookingCreated(event: BookingCreatedEvent) {
   const settings = await getSettings();
 
-  // Control Layer - halt if disabled
   if (settings) {
     if (settings.enable_notifications === false) return;
     if (settings.enable_booking_notifications === false) return;
   }
 
-  const { department_id, booking_contact_phone, department_name, payload } = event;
+  const { department_id, booking_contact_phone, department_name } = event;
 
-  // 1. SMS Confirmation to booking contact
-  if (settings?.enable_confirmation !== false && booking_contact_phone) {
-    const confMsg = `📢 تأكيد حجز قاعة الاجتماعات\n\nتم تسجيل الحجز بنجاح:\n\n📍 الموقع: قاعة اجتماعات مبنى صباح الناصر\n📅 التاريخ: ${payload?.formatted_date || ''}\n⏰ الوقت: ${payload?.formatted_start || ''} – ${payload?.formatted_end || ''}\n🏢 الجهة: ${department_name}\n\nنرجو الالتزام بالموعد المحدد.`;
-
-    await enqueueSms(
-      [booking_contact_phone],
-      confMsg,
-      'confirmation',
-      department_id
-    );
-
-    // Flush immediately (fire-and-forget)
-    processSmsQueue().catch(err =>
-      console.error("[Dispatcher] Background queue flush failed:", err)
-    );
-  }
-
-  // 2. Push notification to booking contact
+  // SMS confirmation is handled by booking_notification_events.
   if (booking_contact_phone) {
     await sendPushToPhones(
       [booking_contact_phone],
@@ -81,10 +63,10 @@ async function handleBookingCreated(event: BookingCreatedEvent) {
     );
   }
 
-  // 3. Also notify department participants via push (exclude contact to avoid dup)
   const participantPhones = await getParticipantPhones(department_id);
   if (participantPhones.length > 0) {
-    const otherPhones = participantPhones.filter(p => p !== booking_contact_phone);
+    const contactPhone = normalizeKuwaitiPhone(booking_contact_phone);
+    const otherPhones = participantPhones.filter((phone) => normalizeKuwaitiPhone(phone) !== contactPhone);
     if (otherPhones.length > 0) {
       await sendPushToPhones(
         otherPhones,
@@ -111,7 +93,6 @@ async function handleBookingReminder(event: BookingReminderEvent) {
     ? (() => { const f = formatTo12Hour(payload.start_time!); return ` الساعة ${f.time} ${f.period}`; })()
     : ' قريباً';
 
-  // Get participants for this department (targeted, not broadcast)
   const phones = await getParticipantPhones(department_id);
 
   if (phones.length === 0) {
@@ -119,12 +100,10 @@ async function handleBookingReminder(event: BookingReminderEvent) {
     return;
   }
 
-  // SMS reminder to participants
   const reminderMsg = `⏰ تذكير بموعد اجتماع\n\nلديك اجتماع بعد ${reminderMinutes} دقيقة:\n\n📍 قاعة اجتماعات مبنى صباح الناصر\n📅 اليوم: ${payload?.formatted_date || ''}\n⏰ الوقت: ${payload?.formatted_start || ''}\n\nيرجى الحضور في الوقت المحدد.`;
 
   await enqueueSms(phones, reminderMsg, 'reminder', department_id);
 
-  // Push reminder to same participants
   await sendPushToPhones(
     phones,
     "⏰ تذكير بالحجز",
@@ -133,7 +112,6 @@ async function handleBookingReminder(event: BookingReminderEvent) {
     department_id
   );
 
-  // Flush queue
   processSmsQueue().catch(err =>
     console.error("[Dispatcher] Background queue flush failed:", err)
   );

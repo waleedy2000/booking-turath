@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
+import { createBookingNotificationEvents, processDueNotificationEvents } from '@/lib/booking-notification-events';
 
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
@@ -11,6 +12,15 @@ function timeToMinutes(value: string): number | null {
 
   return hours * 60 + minutes;
 }
+
+type InsertedBooking = {
+  id: string;
+  department_id: string;
+  department_name: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+};
 
 export async function POST(request: Request) {
   const supabase = getSupabaseAdmin() as any;
@@ -102,8 +112,9 @@ export async function POST(request: Request) {
     }
 
     // 3. حفظ الحجز في قاعدة البيانات (with department_id)
+    let bookingData: InsertedBooking | null = null;
     try {
-      const { error: insertError } = await (supabase as any)
+      const { data: insertedBooking, error: insertError } = await (supabase as any)
         .from('bookings')
         .insert([
           {
@@ -113,7 +124,9 @@ export async function POST(request: Request) {
             start_time,
             end_time
           }
-        ]);
+        ])
+        .select('id, department_id, department_name, date, start_time, end_time')
+        .single();
 
       if (insertError) {
         console.error("Booking Insert Error:", insertError.message);
@@ -122,6 +135,7 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
       }
+      bookingData = insertedBooking;
     } catch (insertError) {
       console.error("Booking Insert Error:", insertError);
       return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
@@ -140,6 +154,23 @@ export async function POST(request: Request) {
 
     // 5. Dispatch unified notification event (handles both SMS + Push)
     try {
+      if (bookingData?.id) {
+        await createBookingNotificationEvents({
+          id: bookingData.id,
+          department_id: deptData.id,
+          department_name: department,
+          date,
+          start_time,
+          end_time,
+        });
+
+        await processDueNotificationEvents({
+          bookingId: bookingData.id,
+          stage: 'confirmation',
+          limit: 50,
+        });
+      }
+
       await dispatchEvent({
         type: 'BOOKING_CREATED',
         department_id: deptData.id,

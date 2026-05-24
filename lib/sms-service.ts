@@ -22,7 +22,15 @@ export async function enqueueSms(
   const supabase = getSupabaseAdmin();
   const scheduleTime = scheduledAt || new Date().toISOString();
 
-  const queueItems: any[] = [];
+  const queueItems: Array<{
+    phone: string;
+    message: string;
+    message_type: string;
+    department_id: string | null;
+    status: 'pending';
+    attempts: number;
+    scheduled_at: string;
+  }> = [];
 
   for (const phone of phones) {
     // Dedup check: same phone + same message + same type
@@ -47,22 +55,28 @@ export async function enqueueSms(
     }
   }
 
+  let insertedIds: string[] = [];
+
   if (queueItems.length > 0) {
-    const { error } = await supabase.from('message_queue').insert(queueItems);
+    const { data, error } = await supabase
+      .from('message_queue')
+      .insert(queueItems)
+      .select('id');
     if (error) {
       console.error("[SmsService] Failed to enqueue SMS:", error);
       throw error;
     }
+    insertedIds = data?.map((item: { id: string }) => item.id) || [];
   }
 
-  return { queued: queueItems.length };
+  return { queued: queueItems.length, ids: insertedIds };
 }
 
 /**
  * دالة لمعالجة طابور الرسائل (SMS Queue) بشكل مباشر عبر السيرفر
  * يتم الاتصال بـ Gateway الخارجي لتنفيذ الإرسال وتحديث الحالة في قاعدة البيانات
  */
-export async function processSmsQueue() {
+export async function processSmsQueue(options: { ids?: string[] } = {}) {
   const supabase = getSupabaseAdmin();
   const gatewayUrl = process.env.SMS_GATEWAY_URL;
   const login = process.env.SMS_GATEWAY_LOGIN;
@@ -83,12 +97,18 @@ export async function processSmsQueue() {
   }
 
   // جلب الرسائل التي لم يتم إرسالها بعد وحان وقت جدولتها
-  const { data: messages, error } = await supabase
+  let query = supabase
     .from('message_queue')
     .select('*')
     .eq('status', 'pending')
     .lte('scheduled_at', new Date().toISOString())
     .limit(10); // دفعات صغيرة لتجنب البطء في الطلبات المتزامنة
+
+  if (options.ids?.length) {
+    query = query.in('id', options.ids);
+  }
+
+  const { data: messages, error } = await query;
 
   if (error) {
     console.error("[SmsService] Queue fetch error:", error);
