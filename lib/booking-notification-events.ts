@@ -28,11 +28,6 @@ function kuwaitLocalToUtc(date: string, time: string): Date {
   return new Date(Date.UTC(year, month - 1, day, hour - KUWAIT_OFFSET_HOURS, minute, 0, 0));
 }
 
-function getKuwaitMinutesOfDay(date: Date): number {
-  const local = new Date(date.getTime() + KUWAIT_OFFSET_HOURS * 60 * 60 * 1000);
-  return local.getUTCHours() * 60 + local.getUTCMinutes();
-}
-
 function previousKuwaitDayAtEight(date: string): Date {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day - 1, 20 - KUWAIT_OFFSET_HOURS, 0, 0, 0));
@@ -50,14 +45,13 @@ export function getMeetingStartAt(date: string, startTime: string): Date {
 
 export function getEarlyReminderAt(date: string, startTime: string): Date {
   const meetingStartAt = getMeetingStartAt(date, startTime);
-  const candidate = new Date(meetingStartAt.getTime() - 5 * 60 * 60 * 1000);
-  const candidateMinutes = getKuwaitMinutesOfDay(candidate);
+  const startMinutes = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5));
 
-  if (candidateMinutes >= 16 * 60 && candidateMinutes <= 20 * 60) {
-    return candidate;
+  if (startMinutes < 12 * 60) {
+    return previousKuwaitDayAtEight(date);
   }
 
-  return previousKuwaitDayAtEight(date);
+  return new Date(meetingStartAt.getTime() - 5 * 60 * 60 * 1000);
 }
 
 function buildEventRows(booking: BookingForEvents, phones: string[], options: { includeConfirmation?: boolean } = {}) {
