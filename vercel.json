@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/notification-events/process",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/send-queue",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}
+{}
