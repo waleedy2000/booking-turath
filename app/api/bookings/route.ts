@@ -209,7 +209,7 @@ export async function GET(request: Request) {
     // Debug logging for GET request params
     console.log(`[ApiBookings GET] Incoming request: date=${date}, month=${month}`);
 
-    let query = supabase.from('bookings').select('*');
+    let query = supabase.from('bookings').select('*').neq('status', 'cancelled');
 
     if (date) {
       console.log(`[ApiBookings GET] Applying date filter: ${date}`);
@@ -249,8 +249,7 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   const supabase = getSupabaseAdmin();
   try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const { id } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 })
@@ -258,12 +257,23 @@ export async function DELETE(request: Request) {
 
     const { error } = await supabase
       .from('bookings')
-      .delete()
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id)
 
     if (error) {
-      return NextResponse.json({ error: 'فشل الحذف' }, { status: 500 })
+      return NextResponse.json({ error: 'فشل الإلغاء' }, { status: 500 })
     }
+
+    // Cancel any future notification events
+    await supabase
+      .from('booking_notification_events')
+      .update({ status: 'skipped' })
+      .eq('booking_id', id)
+      .eq('status', 'pending');
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

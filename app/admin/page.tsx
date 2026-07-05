@@ -404,9 +404,9 @@ export default function AdminPage() {
 
   // حذف حجز
   const deleteBooking = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف الحجز؟')) return
+    if (!confirm('هل أنت متأكد من إلغاء الحجز؟')) return
 
-    const loadingToast = toast.loading('جاري الحذف...')
+    const loadingToast = toast.loading('جاري الإلغاء...')
     try {
       await fetch('/api/bookings', {
         method: 'DELETE',
@@ -414,10 +414,10 @@ export default function AdminPage() {
       })
 
       fetchBookings()
-      toast.success('تم حذف الحجز بنجاح', { id: loadingToast })
+      toast.success('تم إلغاء الحجز بنجاح', { id: loadingToast })
     } catch (err) {
       console.error(err)
-      toast.error('حدث خطأ أثناء الحذف', { id: loadingToast })
+      toast.error('حدث خطأ أثناء الإلغاء', { id: loadingToast })
     }
   }
 
