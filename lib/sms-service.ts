@@ -78,22 +78,39 @@ export async function enqueueSms(
  */
 export async function processSmsQueue(options: { ids?: string[] } = {}) {
   const supabase = getSupabaseAdmin();
+  const provider = process.env.SMS_PROVIDER || 'android_gateway';
+
+  // Android Gateway config
   const gatewayUrl = process.env.SMS_GATEWAY_URL;
   const login = process.env.SMS_GATEWAY_LOGIN;
   const password = process.env.SMS_GATEWAY_PASSWORD;
 
-  if (!gatewayUrl) {
+  // KWTSMS config
+  const kwtsmsUrl = process.env.KWTSMS_API_URL || 'https://www.kwtsms.com/API/send/';
+  const kwtsmsUsername = process.env.KWTSMS_USERNAME;
+  const kwtsmsPassword = process.env.KWTSMS_PASSWORD;
+  const kwtsmsSender = process.env.KWTSMS_SENDER;
+  const kwtsmsTestMode = process.env.KWTSMS_TEST_MODE || '0';
+
+  if (provider === 'android_gateway' && !gatewayUrl) {
     console.warn("[SmsService] SMS Gateway not configured, skipping.");
     return { success: true, processed: 0, message: 'Gateway not configured' };
   }
 
-  if ((login && !password) || (!login && password)) {
+  if (provider === 'kwtsms' && (!kwtsmsUsername || !kwtsmsPassword || !kwtsmsSender)) {
+    console.warn("[SmsService] kwtSMS not configured properly, skipping.");
+    return { success: true, processed: 0, message: 'kwtSMS not configured' };
+  }
+
+  if (provider === 'android_gateway' && ((login && !password) || (!login && password))) {
     console.error("[SmsService] Missing either SMS_GATEWAY_LOGIN or SMS_GATEWAY_PASSWORD. Authentication may fail.");
   }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
-  if (login && password) {
+  if (provider === 'android_gateway' && login && password) {
     headers['Authorization'] = 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
+  } else if (provider === 'kwtsms') {
+    headers['Accept'] = 'application/json';
   }
 
   // جلب الرسائل التي لم يتم إرسالها بعد وحان وقت جدولتها
@@ -150,24 +167,61 @@ export async function processSmsQueue(options: { ids?: string[] } = {}) {
     }
 
     try {
-      const res = await fetch(gatewayUrl, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-          message: msg.message,
-          phoneNumbers: [normalizePhone(msg.phone)],
-        })
-      });
+      let isSuccess = false;
 
-      if (res.ok) {
+      if (provider === 'kwtsms') {
+        const normalizedPhone = normalizePhone(msg.phone);
+        const mobile = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
+
+        const res = await fetch(kwtsmsUrl, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            username: kwtsmsUsername,
+            password: kwtsmsPassword,
+            sender: kwtsmsSender,
+            mobile: mobile,
+            message: msg.message,
+            test: kwtsmsTestMode
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(`kwtSMS HTTP error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data.result === 'OK') {
+          isSuccess = true;
+          console.log(`[SmsService] kwtSMS success for msg ${msg.id}: msgId=${data['msg-id'] || 'N/A'}, balance=${data['balance-after'] || 'N/A'}`);
+        } else {
+          console.error(`[SmsService] kwtSMS API error for msg ${msg.id}: code=${data.code || 'N/A'}, description=${data.description || JSON.stringify(data)}`);
+          throw new Error(`kwtSMS API returned: ${data.result}`);
+        }
+      } else {
+        const res = await fetch(gatewayUrl as string, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            message: msg.message,
+            phoneNumbers: [normalizePhone(msg.phone)],
+          })
+        });
+
+        if (res.ok) {
+          isSuccess = true;
+        } else {
+          throw new Error(`Gateway returned status: ${res.status}`);
+        }
+      }
+
+      if (isSuccess) {
         await supabase
           .from('message_queue')
           .update({ status: 'sent', attempts: msg.attempts + 1 })
           .eq('id', msg.id);
         
         results.push({ id: msg.id, status: 'sent' });
-      } else {
-        throw new Error(`Gateway returned status: ${res.status}`);
       }
     } catch (err) {
       console.error(`[SmsService] Failed to send SMS for msg ${msg.id}:`, err);
