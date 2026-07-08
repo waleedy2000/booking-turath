@@ -96,7 +96,8 @@ export async function POST(request: Request) {
     const { data: existing, error: checkError } = await (supabase as any)
       .from('bookings')
       .select('*')
-      .eq('date', date);
+      .eq('date', date)
+      .neq('status', 'cancelled');
 
     if (checkError) {
       console.error("Error checking bookings:", checkError.message);
@@ -281,5 +282,109 @@ export async function DELETE(request: Request) {
       { error: err?.message || 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(request: Request) {
+  const supabase = getSupabaseAdmin();
+  try {
+    const body = await request.json();
+    const { id, date, start_time, end_time } = body;
+
+    if (!id || !date || !start_time || !end_time) {
+      return NextResponse.json({ success: false, message: 'معلومات غير مكتملة' }, { status: 400 });
+    }
+
+    const startMinutes = timeToMinutes(start_time);
+    const endMinutes = timeToMinutes(end_time);
+
+    if (startMinutes === null || endMinutes === null) {
+      return NextResponse.json({ success: false, message: 'صيغة الوقت غير صحيحة' }, { status: 400 });
+    }
+
+    const durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes <= 0) {
+      return NextResponse.json({ success: false, message: 'وقت نهاية الحجز يجب أن يكون بعد وقت البداية' }, { status: 400 });
+    }
+
+    if (![60, 120].includes(durationMinutes)) {
+      return NextResponse.json({ success: false, message: 'مدة الحجز يجب أن تكون ساعة واحدة أو ساعتين فقط' }, { status: 400 });
+    }
+
+    // Get current booking
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !booking) {
+      return NextResponse.json({ success: false, message: 'الحجز غير موجود' }, { status: 404 });
+    }
+
+    if (booking.status === 'cancelled') {
+      return NextResponse.json({ success: false, message: 'لا يمكن تعديل حجز ملغى' }, { status: 400 });
+    }
+
+    // Check conflict
+    const { data: existing, error: checkError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('date', date)
+      .neq('status', 'cancelled')
+      .neq('id', id);
+
+    if (checkError) {
+      return NextResponse.json({ success: false, message: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
+    }
+
+    const conflict = existing?.some((b: any) => 
+      start_time < b.end_time && end_time > b.start_time
+    );
+
+    if (conflict) {
+      return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
+    }
+
+    // Update booking
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({
+        date,
+        start_time,
+        end_time,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      return NextResponse.json({ success: false, message: 'فشل تعديل الحجز' }, { status: 500 });
+    }
+
+    // Handle notifications safely without sending edit SMS
+    // Skip old pending events
+    await supabase
+      .from('booking_notification_events')
+      .update({ status: 'skipped' })
+      .eq('booking_id', id)
+      .eq('status', 'pending');
+
+    // Recreate new events
+    try {
+       await createBookingNotificationEvents({
+          id: booking.id,
+          department_id: booking.department_id,
+          department_name: booking.department_name,
+          date,
+          start_time,
+          end_time,
+        });
+    } catch (evtErr) {
+       console.error('Failed to recreate notification events:', evtErr);
+    }
+
+    return NextResponse.json({ success: true, message: 'تم تعديل الحجز بنجاح' });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, message: err?.message || 'Internal server error' }, { status: 500 });
   }
 }

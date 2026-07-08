@@ -72,6 +72,10 @@ export default function AdminPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState('')
+  const [editingBooking, setEditingBooking] = useState<any>(null)
+  const [editDate, setEditDate] = useState('')
+  const [editStartTime, setEditStartTime] = useState('')
+  const [editEndTime, setEditEndTime] = useState('')
   const [searchEntity, setSearchEntity] = useState('')
   const [isExporting, setIsExporting] = useState(false)
 
@@ -421,6 +425,40 @@ export default function AdminPage() {
     }
   }
 
+  const handleEditBooking = async () => {
+    if (!editingBooking) return;
+    
+    if (!editDate || !editStartTime || !editEndTime) {
+       toast.error("يرجى ملء جميع الحقول");
+       return;
+    }
+
+    const id = toast.loading('جاري الحفظ...');
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingBooking.id,
+          date: editDate,
+          start_time: editStartTime,
+          end_time: editEndTime
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'فشل التعديل');
+      }
+
+      toast.success('تم تعديل الحجز بنجاح', { id });
+      setEditingBooking(null);
+      fetchBookings();
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ', { id });
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
@@ -652,12 +690,25 @@ export default function AdminPage() {
                           ❌ محجوز ({booking.entity})
                         </span>
 
-                        <button
-                          onClick={() => deleteBooking(booking.id)}
-                          className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
-                        >
-                          إلغاء الحجز
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingBooking(booking);
+                              setEditDate(booking.date);
+                              setEditStartTime(booking.start);
+                              setEditEndTime(booking.end);
+                            }}
+                            className="bg-blue-600 !text-white hover:bg-blue-700 border border-blue-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
+                          >
+                            تعديل ✏️
+                          </button>
+                          <button
+                            onClick={() => deleteBooking(booking.id)}
+                            className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
+                          >
+                            إلغاء الحجز
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <span className="!text-white text-sm font-bold bg-[#097834] px-4 py-1 rounded-full">✅ متاح</span>
@@ -1051,6 +1102,93 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Booking Modal */}
+      {editingBooking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 dark:border-gray-800">
+            <h3 className="text-xl font-bold mb-4 text-[#097834]">تعديل الحجز ({editingBooking.entity})</h3>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">التاريخ</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">وقت البداية</label>
+                  <select
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  >
+                    <option value="">اختر...</option>
+                    <option value="08:00">08:00</option>
+                    <option value="09:00">09:00</option>
+                    <option value="10:00">10:00</option>
+                    <option value="11:00">11:00</option>
+                    <option value="12:00">12:00</option>
+                    <option value="13:00">13:00</option>
+                    <option value="14:00">14:00</option>
+                    <option value="15:00">15:00</option>
+                    <option value="16:00">16:00</option>
+                    <option value="17:00">17:00</option>
+                    <option value="18:00">18:00</option>
+                    <option value="19:00">19:00</option>
+                    <option value="20:00">20:00</option>
+                  </select>
+                </div>
+                
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">وقت النهاية</label>
+                  <select
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  >
+                    <option value="">اختر...</option>
+                    <option value="09:00">09:00</option>
+                    <option value="10:00">10:00</option>
+                    <option value="11:00">11:00</option>
+                    <option value="12:00">12:00</option>
+                    <option value="13:00">13:00</option>
+                    <option value="14:00">14:00</option>
+                    <option value="15:00">15:00</option>
+                    <option value="16:00">16:00</option>
+                    <option value="17:00">17:00</option>
+                    <option value="18:00">18:00</option>
+                    <option value="19:00">19:00</option>
+                    <option value="20:00">20:00</option>
+                    <option value="21:00">21:00</option>
+                    <option value="22:00">22:00</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setEditingBooking(null)}
+                className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 font-bold transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleEditBooking}
+                className="bg-blue-600 !text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                حفظ التعديلات
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
