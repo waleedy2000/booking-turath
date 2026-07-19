@@ -663,59 +663,48 @@ export default function AdminPage() {
             <p className="text-center mt-6 text-gray-600 font-semibold bg-gray-100 p-4 rounded-xl">اختر تاريخاً لعرض الجدول اليومي</p>
           ) : loading ? (
             <p className="text-center text-gray-500 mt-6">جاري التحميل...</p>
+          ) : engineBookings.length === 0 ? (
+            <p className="text-center text-gray-600 font-semibold bg-gray-100 p-4 rounded-xl mt-6">لا توجد حجوزات في هذا اليوم</p>
           ) : (
             <div className="space-y-2 mt-6 transition-opacity duration-300 opacity-100">
-              {slots.map((slot) => {
-                const booking = engineBookings.find(
-                  (b) => slot.start < b.end && slot.end > b.start
-                );
+              {[...engineBookings].sort((a, b) => a.start.localeCompare(b.start)).map((booking) => (
+                <div
+                  key={booking.id}
+                  className="p-4 rounded-xl flex justify-between items-center shadow-sm transition-all bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50"
+                >
+                  {/* الوقت */}
+                  <span className="font-extrabold text-gray-800 dark:text-gray-200 text-lg" dir="rtl">
+                    <span dir="rtl">{formatTimeRange(booking.start, booking.end)}</span>
+                  </span>
 
-                return (
-                  <div
-                    key={slot.start}
-                    className={`p-4 rounded-xl flex justify-between items-center shadow-sm transition-all ${booking
-                      ? 'bg-[#fef2f2] dark:bg-red-950/30 border border-[#fecaca] dark:border-red-900/50'
-                      : 'bg-[#f0fdf4] dark:bg-green-950/30 border border-[#bbf7d0] dark:border-green-900/50'
-                      }`}
-                  >
-                    {/* الوقت */}
-                    <span className="font-extrabold text-gray-800 dark:text-gray-200 text-lg" dir="rtl">
-                      <span dir="rtl">{formatTimeRange(slot.start, slot.end)}</span>
+                  {/* الحالة */}
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-bold text-red-900 bg-red-100 px-3 py-1 rounded-full">
+                      ❌ محجوز ({booking.entity})
                     </span>
 
-                    {/* الحالة */}
-                    {booking ? (
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-bold text-red-900 bg-red-100 px-3 py-1 rounded-full">
-                          ❌ محجوز ({booking.entity})
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingBooking(booking);
-                              setEditDate(booking.date);
-                              setEditStartTime(booking.start);
-                              setEditEndTime(booking.end);
-                            }}
-                            className="bg-blue-600 !text-white hover:bg-blue-700 border border-blue-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
-                          >
-                            تعديل ✏️
-                          </button>
-                          <button
-                            onClick={() => deleteBooking(booking.id)}
-                            className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
-                          >
-                            إلغاء الحجز
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="!text-white text-sm font-bold bg-[#097834] px-4 py-1 rounded-full">✅ متاح</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingBooking(booking);
+                          setEditDate(booking.date);
+                          setEditStartTime(booking.start);
+                          setEditEndTime(booking.end);
+                        }}
+                        className="bg-blue-600 !text-white hover:bg-blue-700 border border-blue-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
+                      >
+                        تعديل ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteBooking(booking.id)}
+                        className="bg-[#dc2626] !text-white hover:bg-red-700 border border-red-800 px-4 py-2 rounded-lg transition-colors font-bold text-sm shadow-sm"
+                      >
+                        إلغاء الحجز
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </>
