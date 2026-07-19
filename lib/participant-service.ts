@@ -1,21 +1,5 @@
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
-
-export function normalizeKuwaitiPhone(phone?: string | null): string | null {
-  if (!phone) return null;
-
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) return null;
-
-  if (digits.startsWith('965') && digits.length === 11) {
-    return `+${digits}`;
-  }
-
-  if (digits.length === 8) {
-    return `+965${digits}`;
-  }
-
-  return `+${digits}`;
-}
+import { normalizeKuwaitiPhone, maskPhone } from "@/lib/phone-utils";
 
 /**
  * Get active participant phone numbers for a department.
@@ -68,17 +52,39 @@ export async function getBookingNotificationRecipients(departmentId: string): Pr
     console.error("[ParticipantService] Error fetching department contact:", deptError);
   }
 
-  const participantPhones = await getParticipantPhones(departmentId);
-  const phones = [
-    department?.booking_contact_phone,
-    department?.phone,
-    ...participantPhones,
-  ];
-
   const unique = new Set<string>();
-  for (const phone of phones) {
+
+  // 1. Add department contact (with fallback)
+  let managerAdded = false;
+  const rawContactPhone = department?.booking_contact_phone;
+  const normalizedContact = normalizeKuwaitiPhone(rawContactPhone);
+
+  if (normalizedContact) {
+    unique.add(normalizedContact);
+    managerAdded = true;
+  } else if (rawContactPhone) {
+    console.warn(`[ParticipantService] Invalid booking_contact_phone (${maskPhone(rawContactPhone)}) for department ${departmentId}. Trying fallback.`);
+  }
+
+  // Fallback to department.phone
+  if (!managerAdded && department?.phone) {
+    const fallbackPhone = normalizeKuwaitiPhone(department.phone);
+    if (fallbackPhone) {
+      unique.add(fallbackPhone);
+    } else {
+      console.warn(`[ParticipantService] Invalid fallback phone (${maskPhone(department.phone)}) for department ${departmentId}.`);
+    }
+  }
+
+  // 2. Add active participants
+  const participantPhones = await getParticipantPhones(departmentId);
+  for (const phone of participantPhones) {
     const normalized = normalizeKuwaitiPhone(phone);
-    if (normalized) unique.add(normalized);
+    if (normalized) {
+      unique.add(normalized);
+    } else {
+      console.warn(`[ParticipantService] Skipping invalid participant phone (${maskPhone(phone)}) for department ${departmentId}.`);
+    }
   }
 
   return Array.from(unique);

@@ -1,6 +1,7 @@
 import { sendPushToPhones } from "@/lib/notification-service";
 import { enqueueSms, processSmsQueue } from "@/lib/sms-service";
-import { getParticipantPhones, normalizeKuwaitiPhone } from "@/lib/participant-service";
+import { getParticipantPhones } from "@/lib/participant-service";
+import { normalizeKuwaitiPhone, maskPhone } from "@/lib/phone-utils";
 import { getSettings } from "@/lib/settings-service";
 import { formatTo12Hour } from "@/utils/timeFormat";
 
@@ -52,21 +53,26 @@ async function handleBookingCreated(event: BookingCreatedEvent) {
 
   const { department_id, booking_contact_phone, department_name } = event;
 
-  // SMS confirmation is handled by booking_notification_events.
-  if (booking_contact_phone) {
+  const normalizedManager = normalizeKuwaitiPhone(booking_contact_phone);
+
+  if (normalizedManager) {
     await sendPushToPhones(
-      [booking_contact_phone],
+      [normalizedManager],
       "حجز جديد",
       "تم تسجيل حجز جديد",
       "booking",
       department_id
     );
+  } else if (booking_contact_phone) {
+    console.warn(`[Dispatcher] Invalid booking_contact_phone (${maskPhone(booking_contact_phone)}) passed for department ${department_id}`);
   }
 
   const participantPhones = await getParticipantPhones(department_id);
   if (participantPhones.length > 0) {
-    const contactPhone = normalizeKuwaitiPhone(booking_contact_phone);
-    const otherPhones = participantPhones.filter((phone) => normalizeKuwaitiPhone(phone) !== contactPhone);
+    const otherPhones = participantPhones
+      .map(normalizeKuwaitiPhone)
+      .filter((p): p is string => Boolean(p) && p !== normalizedManager);
+
     if (otherPhones.length > 0) {
       await sendPushToPhones(
         otherPhones,

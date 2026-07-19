@@ -1,12 +1,5 @@
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
-
-function normalizePhone(phone: string): string {
-  if (!phone) return phone;
-  const trimmed = phone.trim();
-  if (trimmed.startsWith('+')) return trimmed;
-  if (trimmed.startsWith('965')) return '+' + trimmed;
-  return '+' + trimmed;
-}
+import { normalizeKuwaitiPhone, toKwtSmsPhone, maskPhone } from "@/lib/phone-utils";
 
 /**
  * ✅ NEW: Enqueue SMS messages for a list of phone numbers.
@@ -170,8 +163,11 @@ export async function processSmsQueue(options: { ids?: string[] } = {}) {
       let isSuccess = false;
 
       if (provider === 'kwtsms') {
-        const normalizedPhone = normalizePhone(msg.phone);
-        const mobile = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
+        const normalizedPhone = normalizeKuwaitiPhone(msg.phone);
+        if (!normalizedPhone) {
+          throw new Error(`Invalid phone number: ${maskPhone(msg.phone)}`);
+        }
+        const mobile = toKwtSmsPhone(normalizedPhone);
 
         const res = await fetch(kwtsmsUrl, {
           method: 'POST',
@@ -199,12 +195,16 @@ export async function processSmsQueue(options: { ids?: string[] } = {}) {
           throw new Error(`kwtSMS API returned: ${data.result}`);
         }
       } else {
+        const normalizedPhone = normalizeKuwaitiPhone(msg.phone);
+        if (!normalizedPhone) {
+          throw new Error(`Invalid phone number: ${maskPhone(msg.phone)}`);
+        }
         const res = await fetch(gatewayUrl as string, {
           method: 'POST',
           headers: headers,
           body: JSON.stringify({
             message: msg.message,
-            phoneNumbers: [normalizePhone(msg.phone)],
+            phoneNumbers: [normalizedPhone],
           })
         });
 

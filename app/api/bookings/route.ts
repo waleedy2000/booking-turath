@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
 import { createBookingNotificationEvents, processDueNotificationEvents } from '@/lib/booking-notification-events';
+import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
@@ -151,7 +152,17 @@ export async function POST(request: Request) {
     const formattedEnd = `${endFmt.time} ${endFmt.period}`;
 
     // Resolve contact phone: new field first, fallback to legacy
-    const contactPhone = deptData.booking_contact_phone || deptData.phone || null;
+    let contactPhone = normalizeKuwaitiPhone(deptData.booking_contact_phone);
+    if (!contactPhone && deptData.booking_contact_phone) {
+      console.warn(`[API Bookings] Invalid booking_contact_phone (${maskPhone(deptData.booking_contact_phone)}) for department ${deptData.id}. Trying fallback.`);
+    }
+
+    if (!contactPhone) {
+      contactPhone = normalizeKuwaitiPhone(deptData.phone);
+      if (!contactPhone && deptData.phone) {
+        console.warn(`[API Bookings] Invalid fallback phone (${maskPhone(deptData.phone)}) for department ${deptData.id}.`);
+      }
+    }
 
     // 5. Dispatch unified notification event (handles both SMS + Push)
     try {
@@ -176,7 +187,7 @@ export async function POST(request: Request) {
         type: 'BOOKING_CREATED',
         department_id: deptData.id,
         department_name: department,
-        booking_contact_phone: contactPhone,
+        booking_contact_phone: contactPhone || undefined,
         payload: {
           date,
           start_time,

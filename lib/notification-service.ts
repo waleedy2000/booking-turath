@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
+import { normalizeKuwaitiPhone, maskPhone } from "@/lib/phone-utils";
 const supabase = getSupabaseAdmin();
 
 let cachedApp: admin.app.App | null = null;
@@ -79,13 +80,14 @@ export async function sendPushToPhones(
 
   // 2) Fetch tokens by phone numbers
   // Normalize all phones to +965XXXXXXXX before querying to ensure format match
-  const normalizePhone = (p: string) => {
-    const trimmed = p.trim();
-    if (trimmed.startsWith('+')) return trimmed;
-    if (trimmed.startsWith('965')) return '+' + trimmed;
-    return '+965' + trimmed;
-  };
-  const normalizedPhones = phones.map(normalizePhone);
+  const normalizedPhones = phones
+    .map(normalizeKuwaitiPhone)
+    .filter((p): p is string => Boolean(p));
+
+  if (normalizedPhones.length === 0) {
+    console.log(`[NotificationService] No valid phone numbers provided after normalization.`);
+    return { success: true, message: 'No valid phone numbers', sent: 0, failed: 0 };
+  }
 
   const { data: tokensData, error: dbError } = await supabase
     .from('push_tokens')
