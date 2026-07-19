@@ -64,7 +64,6 @@ function buildEventRows(booking: BookingForEvents, phones: string[], options: { 
   const finalExpiresAt = new Date(meetingStartAt.getTime() - 10 * 60 * 1000);
 
   return phones.flatMap((phone) => {
-    const earlyIsLate = now >= earlyScheduledAt;
     const finalIsExpired = now > finalExpiresAt || now >= meetingStartAt;
 
     const rows = [
@@ -78,17 +77,6 @@ function buildEventRows(booking: BookingForEvents, phones: string[], options: { 
         expires_at: meetingStartAt.toISOString(),
         status: now >= meetingStartAt ? 'expired' : 'pending',
       } : null,
-      {
-        booking_id: booking.id,
-        department_id: booking.department_id,
-        phone,
-        channel: 'sms',
-        stage: 'early_reminder',
-        scheduled_at: earlyScheduledAt.toISOString(),
-        expires_at: earlyExpiresAt.toISOString(),
-        status: earlyIsLate ? 'skipped' : 'pending',
-        error: earlyIsLate ? 'early_reminder_schedule_already_passed' : null,
-      },
       {
         booking_id: booking.id,
         department_id: booking.department_id,
@@ -189,14 +177,10 @@ function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents) {
   const formattedEnd = booking.end_time ? formatBookingTime(booking.end_time) : '';
 
   if (stage === 'confirmation') {
-    return `تأكيد حجز قاعة الاجتماعات\n\nتم تسجيل الحجز بنجاح:\n\nالموقع: قاعة اجتماعات مبنى صباح الناصر\nالتاريخ: ${formattedDate}\nالوقت: ${formattedStart}${formattedEnd ? ` - ${formattedEnd}` : ''}\nالجهة: ${booking.department_name}\n\nنرجو الالتزام بالموعد المحدد.`;
+    return `تأكيد حجز قاعة اجتماعات إحياء التراث - الفروانية\n\nتم الحجز بنجاح\n\nالموقع: مبنى صباح الناصر\nالتاريخ: ${formattedDate}\nالوقت: ${formattedStart}${formattedEnd ? ` - ${formattedEnd}` : ''}\nالجهة: ${booking.department_name}\n\nيشرفنا حضوركم`;
   }
 
-  if (stage === 'early_reminder') {
-    return `تذكير مبكر بموعد اجتماع\n\nلديك اجتماع قادم:\n\nالموقع: قاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيرجى الاستعداد والحضور في الوقت المحدد.`;
-  }
-
-  return `تذكير بموعد اجتماع\n\nلديك اجتماع بعد 30 دقيقة:\n\nالموقع: قاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيرجى الحضور في الوقت المحدد.`;
+  return `تذكير بموعد اجتماع\n\nلديك اجتماع بعد 30 دقيقة:\n\nقاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيشرفنا حضوركم`;
 }
 
 async function markEvent(id: string, status: 'sent' | 'failed' | 'expired' | 'skipped', fields: Record<string, unknown> = {}) {

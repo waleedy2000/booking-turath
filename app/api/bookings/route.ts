@@ -378,7 +378,7 @@ export async function PUT(request: Request) {
           date,
           start_time,
           end_time,
-        });
+        }, { includeConfirmation: false });
     } catch (evtErr) {
        console.error('Failed to recreate notification events:', evtErr);
     }
