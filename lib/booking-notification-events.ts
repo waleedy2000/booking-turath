@@ -54,14 +54,14 @@ export function getEarlyReminderAt(date: string, startTime: string): Date {
   return new Date(meetingStartAt.getTime() - 5 * 60 * 60 * 1000);
 }
 
-function buildEventRows(booking: BookingForEvents, phones: string[], options: { includeConfirmation?: boolean } = {}) {
+function buildEventRows(booking: BookingForEvents, phones: string[], reminderMinutes: number, options: { includeConfirmation?: boolean } = {}) {
   const now = new Date();
   const includeConfirmation = options.includeConfirmation !== false;
   const meetingStartAt = getMeetingStartAt(booking.date, booking.start_time);
-  const earlyScheduledAt = getEarlyReminderAt(booking.date, booking.start_time);
-  const earlyExpiresAt = new Date(meetingStartAt.getTime() - 60 * 60 * 1000);
-  const finalScheduledAt = new Date(meetingStartAt.getTime() - 30 * 60 * 1000);
-  const finalExpiresAt = new Date(meetingStartAt.getTime() - 10 * 60 * 1000);
+
+  const finalScheduledAt = new Date(meetingStartAt.getTime() - reminderMinutes * 60 * 1000);
+  const expiresOffset = Math.min(10, Math.max(1, reminderMinutes - 5));
+  const finalExpiresAt = new Date(meetingStartAt.getTime() - expiresOffset * 60 * 1000);
 
   return phones.flatMap((phone) => {
     const finalIsExpired = now > finalExpiresAt || now >= meetingStartAt;
@@ -103,7 +103,13 @@ export async function createBookingNotificationEvents(booking: BookingForEvents,
     return { created: 0, recipients: 0 };
   }
 
-  const rows = buildEventRows(booking, phones, options);
+  const settings = await getSettings();
+  let reminderMinutes = parseInt(settings?.reminder_minutes as unknown as string, 10);
+  if (isNaN(reminderMinutes) || reminderMinutes <= 0) {
+    reminderMinutes = 60;
+  }
+
+  const rows = buildEventRows(booking, phones, reminderMinutes, options);
   const { data, error } = await supabase
     .from('booking_notification_events')
     .upsert(rows, { onConflict: 'booking_id,phone,channel,stage', ignoreDuplicates: true })
@@ -171,7 +177,7 @@ function formatBookingTime(time: string) {
   return `${formatted.time} ${formatted.period}`;
 }
 
-function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents) {
+function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents, reminderMinutes: number) {
   const formattedDate = formatBookingDate(booking.date);
   const formattedStart = formatBookingTime(booking.start_time);
   const formattedEnd = booking.end_time ? formatBookingTime(booking.end_time) : '';
@@ -180,7 +186,11 @@ function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents) {
     return `تأكيد حجز قاعة اجتماعات إحياء التراث - الفروانية\n\nتم الحجز بنجاح\n\nالموقع: مبنى صباح الناصر\nالتاريخ: ${formattedDate}\nالوقت: ${formattedStart}${formattedEnd ? ` - ${formattedEnd}` : ''}\nالجهة: ${booking.department_name}\n\nيشرفنا حضوركم`;
   }
 
-  return `تذكير بموعد اجتماع\n\nلديك اجتماع بعد 30 دقيقة:\n\nقاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيشرفنا حضوركم`;
+  let reminderText = `بعد ${reminderMinutes} دقيقة`;
+  if (reminderMinutes === 60) reminderText = 'بعد ساعة';
+  else if (reminderMinutes === 120) reminderText = 'بعد ساعتين';
+
+  return `تذكير بموعد اجتماع\n\nلديك اجتماع ${reminderText}:\n\nقاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيشرفنا حضوركم`;
 }
 
 async function markEvent(id: string, status: 'sent' | 'failed' | 'expired' | 'skipped', fields: Record<string, unknown> = {}) {
@@ -194,9 +204,9 @@ async function markEvent(id: string, status: 'sent' | 'failed' | 'expired' | 'sk
     .eq('id', id);
 }
 
-function isFinalReminderWindowValid(now: Date, meetingStartAt: Date) {
-  const earliest = new Date(meetingStartAt.getTime() - 35 * 60 * 1000);
-  const latest = new Date(meetingStartAt.getTime() - 25 * 60 * 1000);
+function isFinalReminderWindowValid(now: Date, meetingStartAt: Date, reminderMinutes: number) {
+  const earliest = new Date(meetingStartAt.getTime() - (reminderMinutes + 5) * 60 * 1000);
+  const latest = new Date(meetingStartAt.getTime() - Math.max(0, reminderMinutes - 5) * 60 * 1000);
   return now >= earliest && now <= latest;
 }
 
@@ -260,13 +270,20 @@ export async function processDueNotificationEvents(options: { limit?: number; bo
     }
 
     const meetingStartAt = getMeetingStartAt(booking.date, booking.start_time);
+    const eventScheduledAt = new Date(event.scheduled_at);
+    // استنتاج مدة التذكير الأصلية لضمان تطابق الرسالة ونافذة السماحية مع وقت جدولة الحدث
+    let reminderMinutes = Math.round((meetingStartAt.getTime() - eventScheduledAt.getTime()) / (60 * 1000));
+    if (isNaN(reminderMinutes) || reminderMinutes <= 0 || reminderMinutes > 1440) {
+      reminderMinutes = 60;
+    }
+
     if (now >= meetingStartAt) {
       await markEvent(event.id, 'expired', { error: 'meeting_already_started' });
       results.expired++;
       continue;
     }
 
-    if (event.stage === 'final_reminder' && !isFinalReminderWindowValid(now, meetingStartAt)) {
+    if (event.stage === 'final_reminder' && !isFinalReminderWindowValid(now, meetingStartAt, reminderMinutes)) {
       await markEvent(event.id, 'expired', { error: 'final_reminder_outside_grace_window' });
       results.expired++;
       continue;
@@ -280,7 +297,7 @@ export async function processDueNotificationEvents(options: { limit?: number; bo
     }
 
     try {
-      const message = buildSmsMessage(stage, booking);
+      const message = buildSmsMessage(stage, booking, reminderMinutes);
       const queued = await enqueueSms([event.phone], message, stage, event.department_id || undefined, now.toISOString());
       if (queued.ids.length === 0) {
         await markEvent(event.id, 'skipped', { error: 'duplicate_sms_already_queued' });
