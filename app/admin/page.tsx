@@ -406,22 +406,31 @@ export default function AdminPage() {
     }
   }
 
-  // حذف حجز
   const deleteBooking = async (id: string) => {
     if (!confirm('هل أنت متأكد من إلغاء الحجز؟')) return
 
     const loadingToast = toast.loading('جاري الإلغاء...')
     try {
-      await fetch('/api/bookings', {
+      const res = await fetch('/api/bookings', {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
 
+      if (res.status === 401) {
+        toast.error('انتهت الجلسة، الرجاء تسجيل الدخول مجدداً', { id: loadingToast })
+        router.push('/admin/login')
+        return
+      }
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || data.message || 'فشل الإلغاء')
+
       fetchBookings()
       toast.success('تم إلغاء الحجز بنجاح', { id: loadingToast })
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error('حدث خطأ أثناء الإلغاء', { id: loadingToast })
+      toast.error(err.message || 'حدث خطأ أثناء الإلغاء', { id: loadingToast })
     }
   }
 
@@ -446,9 +455,15 @@ export default function AdminPage() {
         })
       });
 
+      if (res.status === 401) {
+        toast.error('انتهت الجلسة، الرجاء تسجيل الدخول مجدداً', { id });
+        router.push('/admin/login');
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.message || 'فشل التعديل');
+        throw new Error(data?.message || data?.error || 'فشل التعديل');
       }
 
       toast.success('تم تعديل الحجز بنجاح', { id });
@@ -1106,6 +1121,7 @@ export default function AdminPage() {
                 <input
                   type="date"
                   value={editDate}
+                  min={new Date(new Date().getTime() + 3 * 3600 * 1000).toISOString().split('T')[0]}
                   onChange={(e) => setEditDate(e.target.value)}
                   className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 />
@@ -1120,19 +1136,19 @@ export default function AdminPage() {
                     className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">اختر...</option>
-                    <option value="08:00">08:00</option>
-                    <option value="09:00">09:00</option>
-                    <option value="10:00">10:00</option>
-                    <option value="11:00">11:00</option>
-                    <option value="12:00">12:00</option>
-                    <option value="13:00">13:00</option>
-                    <option value="14:00">14:00</option>
-                    <option value="15:00">15:00</option>
-                    <option value="16:00">16:00</option>
-                    <option value="17:00">17:00</option>
-                    <option value="18:00">18:00</option>
-                    <option value="19:00">19:00</option>
-                    <option value="20:00">20:00</option>
+                    <optgroup label="الفترة الصباحية">
+                      <option value="09:00">09:00</option>
+                      <option value="10:00">10:00</option>
+                      <option value="11:00">11:00</option>
+                    </optgroup>
+                    <optgroup label="الفترة المسائية">
+                      <option value="16:00">16:00</option>
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                      <option value="19:00">19:00</option>
+                      <option value="20:00">20:00</option>
+                      <option value="21:00">21:00</option>
+                    </optgroup>
                   </select>
                 </div>
                 
@@ -1144,20 +1160,19 @@ export default function AdminPage() {
                     className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#097834] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">اختر...</option>
-                    <option value="09:00">09:00</option>
-                    <option value="10:00">10:00</option>
-                    <option value="11:00">11:00</option>
-                    <option value="12:00">12:00</option>
-                    <option value="13:00">13:00</option>
-                    <option value="14:00">14:00</option>
-                    <option value="15:00">15:00</option>
-                    <option value="16:00">16:00</option>
-                    <option value="17:00">17:00</option>
-                    <option value="18:00">18:00</option>
-                    <option value="19:00">19:00</option>
-                    <option value="20:00">20:00</option>
-                    <option value="21:00">21:00</option>
-                    <option value="22:00">22:00</option>
+                    <optgroup label="الفترة الصباحية">
+                      <option value="10:00">10:00</option>
+                      <option value="11:00">11:00</option>
+                      <option value="12:00">12:00</option>
+                    </optgroup>
+                    <optgroup label="الفترة المسائية">
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                      <option value="19:00">19:00</option>
+                      <option value="20:00">20:00</option>
+                      <option value="21:00">21:00</option>
+                      <option value="22:00">22:00</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>

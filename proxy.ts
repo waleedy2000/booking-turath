@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_local_dev';
+import { getJwtSecret } from '@/lib/admin-auth';
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,7 +15,8 @@ export default async function proxy(request: NextRequest) {
     }
 
     try {
-      await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
+      const secret = getJwtSecret();
+      await jwtVerify(token, secret);
       return NextResponse.next();
     } catch (err) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
@@ -29,7 +29,7 @@ export default async function proxy(request: NextRequest) {
     { path: '/api/departments', methods: ['PUT', 'POST', 'DELETE'] },
     { path: '/api/subscribers', methods: ['POST', 'DELETE'] },
     { path: '/api/participants', methods: ['POST', 'DELETE'] },
-    { path: '/api/bookings', methods: ['DELETE'] }, // DO NOT PROTECT POST or GET here!
+    { path: '/api/bookings', methods: ['DELETE', 'PUT'] }, // DO NOT PROTECT POST or GET here!
     { path: '/api/send-notification', methods: ['POST'] },
     { path: '/api/test-sms', methods: ['POST'] },
     { path: '/api/notify', methods: ['POST'] },
@@ -44,9 +44,13 @@ export default async function proxy(request: NextRequest) {
       }
 
       try {
-        await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
+        const secret = getJwtSecret();
+        await jwtVerify(token, secret);
         return NextResponse.next();
-      } catch (err) {
+      } catch (err: any) {
+        if (err.message === 'JWT_SECRET_MISSING') {
+          return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        }
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
       }
     }

@@ -4,6 +4,8 @@ import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
 import { createBookingNotificationEvents, processDueNotificationEvents } from '@/lib/booking-notification-events';
 import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
+import { requireAdmin } from '@/lib/admin-auth';
+import { validateBookingRules } from '@/services/timeSlotsEngine';
 
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
@@ -50,28 +52,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. تحقق من رمز الـ PIN الخاص بالجهة
-    const startMinutes = timeToMinutes(start_time);
-    const endMinutes = timeToMinutes(end_time);
-
-    if (startMinutes === null || endMinutes === null) {
+    // 1. تحقق من صحة المواعيد
+    const validation = validateBookingRules(date, start_time, end_time);
+    if (!validation.valid) {
       return NextResponse.json(
-        { success: false, message: 'صيغة الوقت غير صحيحة' },
-        { status: 400 }
-      );
-    }
-
-    const durationMinutes = endMinutes - startMinutes;
-    if (durationMinutes <= 0) {
-      return NextResponse.json(
-        { success: false, message: 'وقت نهاية الحجز يجب أن يكون بعد وقت البداية' },
-        { status: 400 }
-      );
-    }
-
-    if (![60, 120].includes(durationMinutes)) {
-      return NextResponse.json(
-        { success: false, message: 'مدة الحجز يجب أن تكون ساعة واحدة أو ساعتين فقط' },
+        { success: false, message: validation.message },
         { status: 400 }
       );
     }
@@ -98,7 +83,7 @@ export async function POST(request: Request) {
       .from('bookings')
       .select('*')
       .eq('date', date)
-      .neq('status', 'cancelled');
+      .or('status.is.null,status.neq.cancelled');
 
     if (checkError) {
       console.error("Error checking bookings:", checkError.message);
@@ -259,6 +244,9 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
   const supabase = getSupabaseAdmin();
   try {
     const { id } = await request.json();
@@ -297,6 +285,9 @@ export async function DELETE(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
   const supabase = getSupabaseAdmin();
   try {
     const body = await request.json();
@@ -306,20 +297,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, message: 'معلومات غير مكتملة' }, { status: 400 });
     }
 
-    const startMinutes = timeToMinutes(start_time);
-    const endMinutes = timeToMinutes(end_time);
-
-    if (startMinutes === null || endMinutes === null) {
-      return NextResponse.json({ success: false, message: 'صيغة الوقت غير صحيحة' }, { status: 400 });
-    }
-
-    const durationMinutes = endMinutes - startMinutes;
-    if (durationMinutes <= 0) {
-      return NextResponse.json({ success: false, message: 'وقت نهاية الحجز يجب أن يكون بعد وقت البداية' }, { status: 400 });
-    }
-
-    if (![60, 120].includes(durationMinutes)) {
-      return NextResponse.json({ success: false, message: 'مدة الحجز يجب أن تكون ساعة واحدة أو ساعتين فقط' }, { status: 400 });
+    const validation = validateBookingRules(date, start_time, end_time);
+    if (!validation.valid) {
+      return NextResponse.json({ success: false, message: validation.message }, { status: 400 });
     }
 
     // Get current booking
@@ -342,8 +322,8 @@ export async function PUT(request: Request) {
       .from('bookings')
       .select('*')
       .eq('date', date)
-      .neq('status', 'cancelled')
-      .neq('id', id);
+      .neq('id', id)
+      .or('status.is.null,status.neq.cancelled');
 
     if (checkError) {
       return NextResponse.json({ success: false, message: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });

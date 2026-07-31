@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_local_dev';
+import { getJwtSecret } from '@/lib/admin-auth';
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('24h')
-      .sign(new TextEncoder().encode(JWT_SECRET));
+      .sign(getJwtSecret());
 
     const response = NextResponse.json({ success: true }, { status: 200 });
 
@@ -40,6 +39,9 @@ export async function POST(request: Request) {
 
     return response;
   } catch (err: any) {
+    if (err.message === 'JWT_SECRET_MISSING') {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

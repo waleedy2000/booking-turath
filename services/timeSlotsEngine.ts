@@ -93,3 +93,64 @@ export function getAvailableSlots(
     };
   });
 }
+
+export type ValidationResult = {
+  valid: boolean;
+  code?: string;
+  message?: string;
+};
+
+export function validateBookingRules(date: string, startTime: string, endTime: string): ValidationResult {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const timeRegex = /^\d{2}:\d{2}$/;
+
+  if (!dateRegex.test(date) || !timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    return { valid: false, code: 'INVALID_FORMAT', message: 'صيغة التاريخ أو الوقت غير صحيحة' };
+  }
+
+  const [year, month, day] = date.split('-').map(Number);
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+
+  if (startHour < 0 || startHour > 23 || startMinute < 0 || startMinute > 59 ||
+      endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
+    return { valid: false, code: 'INVALID_FORMAT', message: 'صيغة التاريخ أو الوقت غير صحيحة' };
+  }
+
+  const checkDate = new Date(year, month - 1, day);
+  if (checkDate.getFullYear() !== year || checkDate.getMonth() !== month - 1 || checkDate.getDate() !== day) {
+    return { valid: false, code: 'INVALID_FORMAT', message: 'صيغة التاريخ أو الوقت غير صحيحة' };
+  }
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+
+  if (endMinutes <= startMinutes) {
+    return { valid: false, code: 'INVALID_DURATION', message: 'وقت نهاية الحجز يجب أن يكون بعد وقت البداية' };
+  }
+
+  const duration = endMinutes - startMinutes;
+  if (duration !== 60 && duration !== 120) {
+    return { valid: false, code: 'INVALID_DURATION', message: 'مدة الحجز يجب أن تكون 60 أو 120 دقيقة فقط' };
+  }
+
+  const isMorning = startMinutes >= timeToMinutes("09:00") && endMinutes <= timeToMinutes("12:00");
+  const isEvening = startMinutes >= timeToMinutes("16:00") && endMinutes <= timeToMinutes("22:00");
+
+  if (!isMorning && !isEvening) {
+    return { valid: false, code: 'OUTSIDE_WORK_HOURS', message: 'الموعد خارج أوقات العمل أو يتجاوز فترة الاستراحة' };
+  }
+
+  // Check past date/time using Kuwait time
+  const now = new Date();
+  const kuwaitOffsetHours = 3;
+
+  // Construct UTC time of the booking (subtract Kuwait offset)
+  const bookingUtcTime = new Date(Date.UTC(year, month - 1, day, startHour - kuwaitOffsetHours, startMinute, 0, 0));
+
+  if (bookingUtcTime.getTime() < now.getTime()) {
+    return { valid: false, code: 'PAST_DATE', message: 'لا يمكن حجز موعد في الماضي' };
+  }
+
+  return { valid: true };
+}
