@@ -123,6 +123,71 @@ export async function createBookingNotificationEvents(booking: BookingForEvents,
   return { created: data?.length || 0, recipients: phones.length };
 }
 
+export async function rescheduleFinalReminders(booking: BookingForEvents) {
+  const supabase = getSupabaseAdmin();
+
+  // Skip old pending events for this booking
+  const { error: skipError } = await supabase
+    .from('booking_notification_events')
+    .update({ status: 'skipped' })
+    .eq('booking_id', booking.id)
+    .eq('stage', 'final_reminder')
+    .eq('channel', 'sms')
+    .eq('status', 'pending');
+
+  if (skipError) {
+    console.error('[BookingNotificationEvents] Failed to skip old events:', skipError.message);
+    throw new Error('Failed to update existing notification events');
+  }
+
+  const phones = await getBookingNotificationRecipients(booking.department_id);
+  if (phones.length === 0) {
+    return { rescheduled: 0 };
+  }
+
+  const settings = await getSettings();
+  let reminderMinutes = parseInt(settings?.reminder_minutes as unknown as string, 10);
+  if (isNaN(reminderMinutes) || reminderMinutes <= 0) {
+    reminderMinutes = 60;
+  }
+
+  const meetingStartAt = getMeetingStartAt(booking.date, booking.start_time);
+  const finalScheduledAt = new Date(meetingStartAt.getTime() - reminderMinutes * 60 * 1000);
+  const expiresOffset = Math.min(10, Math.max(1, reminderMinutes - 5));
+  const finalExpiresAt = new Date(meetingStartAt.getTime() - expiresOffset * 60 * 1000);
+
+  const now = new Date();
+  const finalIsExpired = now > finalExpiresAt || now >= meetingStartAt;
+
+  const rows = phones.map((phone) => ({
+    booking_id: booking.id,
+    department_id: booking.department_id,
+    phone,
+    channel: 'sms',
+    stage: 'final_reminder',
+    scheduled_at: finalScheduledAt.toISOString(),
+    expires_at: finalExpiresAt.toISOString(),
+    status: finalIsExpired ? 'expired' : 'pending',
+    sent_at: null,
+    error: finalIsExpired ? 'final_reminder_expired_at_booking_creation' : null,
+  }));
+
+  const { data, error } = await supabase
+    .from('booking_notification_events')
+    .upsert(rows, {
+      onConflict: 'booking_id,phone,channel,stage',
+      ignoreDuplicates: false
+    })
+    .select('id');
+
+  if (error) {
+    console.error('[BookingNotificationEvents] Failed to reschedule final reminders:', error.message);
+    throw new Error('Failed to reschedule final reminders');
+  }
+
+  return { rescheduled: data?.length || 0 };
+}
+
 export async function ensureNotificationEventsForUpcomingBookings(limit = 20) {
   const supabase = getSupabaseAdmin();
   const now = new Date();

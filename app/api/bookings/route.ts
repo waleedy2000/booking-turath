@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { formatTo12Hour } from '@/utils/timeFormat';
 import { dispatchEvent } from '@/lib/notification-dispatcher';
-import { createBookingNotificationEvents, processDueNotificationEvents } from '@/lib/booking-notification-events';
+import { createBookingNotificationEvents, processDueNotificationEvents, rescheduleFinalReminders } from '@/lib/booking-notification-events';
 import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
@@ -353,25 +353,18 @@ export async function PUT(request: Request) {
     }
 
     // Handle notifications safely without sending edit SMS
-    // Skip old pending events
-    await supabase
-      .from('booking_notification_events')
-      .update({ status: 'skipped' })
-      .eq('booking_id', id)
-      .eq('status', 'pending');
-
-    // Recreate new events
     try {
-       await createBookingNotificationEvents({
+       await rescheduleFinalReminders({
           id: booking.id,
           department_id: booking.department_id,
           department_name: booking.department_name,
           date,
           start_time,
           end_time,
-        }, { includeConfirmation: false });
-    } catch (evtErr) {
-       console.error('Failed to recreate notification events:', evtErr);
+       });
+    } catch (evtErr: any) {
+       console.error('Failed to reschedule final reminders:', evtErr);
+       return NextResponse.json({ success: false, message: 'تم تعديل الحجز ولكن فشلت إعادة جدولة التذكير' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'تم تعديل الحجز بنجاح' });
