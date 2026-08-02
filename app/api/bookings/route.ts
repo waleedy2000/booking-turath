@@ -7,6 +7,10 @@ import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
 
+export function isActiveBookingForConflict(booking: any) {
+  return booking.status === null || booking.status !== 'cancelled';
+}
+
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
 
@@ -79,18 +83,18 @@ export async function POST(request: Request) {
     }
 
     // 2. التحقق من التعارض (Overlap) لنفس اليوم والوقت بدقة الاحترافية
-    const { data: existing, error: checkError } = await (supabase as any)
+    const { data: allExisting, error: checkError } = await (supabase as any)
       .from('bookings')
       .select('*')
-      .eq('date', date)
-      .or('status.is.null,status.neq.cancelled');
+      .eq('date', date);
 
     if (checkError) {
       console.error("Error checking bookings:", checkError.message);
       return NextResponse.json({ error: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
     }
 
-    const conflict = (existing as any[])?.some(b => 
+    const activeExisting = (allExisting as any[])?.filter(isActiveBookingForConflict) || [];
+    const conflict = activeExisting.some(b =>
       start_time < b.end_time && end_time > b.start_time
     );
 
@@ -206,7 +210,7 @@ export async function GET(request: Request) {
     // Debug logging for GET request params
     console.log(`[ApiBookings GET] Incoming request: date=${date}, month=${month}`);
 
-    let query = supabase.from('bookings').select('*').neq('status', 'cancelled');
+    let query = supabase.from('bookings').select('*');
 
     if (date) {
       console.log(`[ApiBookings GET] Applying date filter: ${date}`);
@@ -232,8 +236,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log(`[ApiBookings GET] Success: Returned ${data?.length || 0} rows.`);
-    return NextResponse.json(data ?? []);
+    const activeData = (data ?? []).filter(isActiveBookingForConflict);
+    console.log(`[ApiBookings GET] Success: Returned ${activeData.length} active rows (out of ${data?.length || 0} total).`);
+    return NextResponse.json(activeData);
   } catch (err: any) {
     console.error("[ApiBookings GET] Fatal error:", err);
     return NextResponse.json(
@@ -318,18 +323,18 @@ export async function PUT(request: Request) {
     }
 
     // Check conflict
-    const { data: existing, error: checkError } = await supabase
+    const { data: allExisting, error: checkError } = await supabase
       .from('bookings')
       .select('*')
       .eq('date', date)
-      .neq('id', id)
-      .or('status.is.null,status.neq.cancelled');
+      .neq('id', id);
 
     if (checkError) {
       return NextResponse.json({ success: false, message: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
     }
 
-    const conflict = existing?.some((b: any) => 
+    const activeExisting = (allExisting as any[])?.filter(isActiveBookingForConflict) || [];
+    const conflict = activeExisting.some((b: any) =>
       start_time < b.end_time && end_time > b.start_time
     );
 
