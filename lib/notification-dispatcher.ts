@@ -106,7 +106,7 @@ async function handleBookingReminder(event: BookingReminderEvent) {
     return;
   }
 
-  const reminderMsg = `⏰ تذكير بموعد اجتماع\n\nلديك اجتماع بعد ${reminderMinutes} دقيقة:\n\n📍 قاعة اجتماعات مبنى صباح الناصر\n📅 اليوم: ${payload?.formatted_date || ''}\n⏰ الوقت: ${payload?.formatted_start || ''}\n\nيرجى الحضور في الوقت المحدد.`;
+  const reminderMsg = `لديك موعد اجتماع بعد ساعة\n${payload?.formatted_date || ''}\n${payload?.formatted_start || ''}\n${event.department_name || ''}`;
 
   await enqueueSms(phones, reminderMsg, 'reminder', department_id);
 

@@ -180,17 +180,12 @@ function formatBookingTime(time: string) {
 function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents, reminderMinutes: number) {
   const formattedDate = formatBookingDate(booking.date);
   const formattedStart = formatBookingTime(booking.start_time);
-  const formattedEnd = booking.end_time ? formatBookingTime(booking.end_time) : '';
 
   if (stage === 'confirmation') {
-    return `تأكيد حجز قاعة اجتماعات إحياء التراث - الفروانية\n\nتم الحجز بنجاح\n\nالموقع: مبنى صباح الناصر\nالتاريخ: ${formattedDate}\nالوقت: ${formattedStart}${formattedEnd ? ` - ${formattedEnd}` : ''}\nالجهة: ${booking.department_name}\n\nيشرفنا حضوركم`;
+    return `تم حجز قاعة الاجتماع\n${formattedDate}\n${formattedStart}\n${booking.department_name}`;
   }
 
-  let reminderText = `بعد ${reminderMinutes} دقيقة`;
-  if (reminderMinutes === 60) reminderText = 'بعد ساعة';
-  else if (reminderMinutes === 120) reminderText = 'بعد ساعتين';
-
-  return `تذكير بموعد اجتماع\n\nلديك اجتماع ${reminderText}:\n\nقاعة اجتماعات مبنى صباح الناصر\nاليوم: ${formattedDate}\nالوقت: ${formattedStart}\n\nيشرفنا حضوركم`;
+  return `لديك موعد اجتماع بعد ساعة\n${formattedDate}\n${formattedStart}\n${booking.department_name}`;
 }
 
 async function markEvent(id: string, status: 'sent' | 'failed' | 'expired' | 'skipped', fields: Record<string, unknown> = {}) {
