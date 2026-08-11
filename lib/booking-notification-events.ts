@@ -96,7 +96,7 @@ function buildEventRows(booking: BookingForEvents, phones: string[], reminderMin
 
 export async function createBookingNotificationEvents(booking: BookingForEvents, options: { includeConfirmation?: boolean } = {}) {
   const supabase = getSupabaseAdmin();
-  const phones = await getBookingNotificationRecipients(booking.department_id);
+  const phones = await getBookingNotificationRecipients(booking.department_id, booking.id);
 
   if (phones.length === 0) {
     console.log(`[BookingNotificationEvents] No recipients for booking ${booking.id}`);
@@ -140,7 +140,7 @@ export async function rescheduleFinalReminders(booking: BookingForEvents) {
     throw new Error('Failed to update existing notification events');
   }
 
-  const phones = await getBookingNotificationRecipients(booking.department_id);
+  const phones = await getBookingNotificationRecipients(booking.department_id, booking.id);
   if (phones.length === 0) {
     return { rescheduled: 0 };
   }

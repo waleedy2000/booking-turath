@@ -37,10 +37,10 @@ export async function getDepartmentContact(departmentId: string): Promise<string
 }
 
 /**
- * Resolve all booking notification recipients for a department:
- * booking contact + active participants, normalized and deduplicated.
+ * Resolve all booking notification recipients for a department and optional booking:
+ * booking contact + active participants + booking invitees, normalized and deduplicated.
  */
-export async function getBookingNotificationRecipients(departmentId: string): Promise<string[]> {
+export async function getBookingNotificationRecipients(departmentId: string, bookingId?: string): Promise<string[]> {
   const supabase = getSupabaseAdmin();
   const { data: department, error: deptError } = await supabase
     .from('departments')
@@ -84,6 +84,28 @@ export async function getBookingNotificationRecipients(departmentId: string): Pr
       unique.add(normalized);
     } else {
       console.warn(`[ParticipantService] Skipping invalid participant phone (${maskPhone(phone)}) for department ${departmentId}.`);
+    }
+  }
+
+  // 3. Add booking invitees if bookingId is provided
+  if (bookingId) {
+    const { data: invitees, error: inviteesError } = await supabase
+      .from('booking_invitees')
+      .select('phone')
+      .eq('booking_id', bookingId);
+
+    if (inviteesError) {
+      console.error(`[ParticipantService] Error fetching invitees for booking ${bookingId}:`, inviteesError);
+      throw new Error(`Failed to fetch booking invitees: ${inviteesError.message}`);
+    }
+
+    for (const invitee of invitees || []) {
+      const normalized = normalizeKuwaitiPhone(invitee.phone);
+      if (normalized) {
+        unique.add(normalized);
+      } else {
+        console.warn(`[ParticipantService] Skipping invalid invitee phone (${maskPhone(invitee.phone)}) for booking ${bookingId}.`);
+      }
     }
   }
 

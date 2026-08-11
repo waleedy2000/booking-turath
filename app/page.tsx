@@ -64,6 +64,10 @@ export default function Home() {
   const [monthBookings, setMonthBookings] = useState<Booking[]>([])
   const [departments, setDepartments] = useState<DepartmentOption[]>([])
   const [loadingDepartments, setLoadingDepartments] = useState(true)
+  const [hasInvitees, setHasInvitees] = useState(false)
+  const [invitees, setInvitees] = useState<Array<{ name: string; phone: string }>>([
+    { name: '', phone: '' }
+  ])
 
   const { install, isInstallable, isIOS, isStandalone, installed, showInstallPrompt } = usePWAInstall()
 
@@ -426,6 +430,92 @@ export default function Home() {
           </div>
         )}
 
+        {/* خيار المدعوين الإضافيين */}
+        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <label className="flex items-center justify-between cursor-pointer py-1 select-none">
+            <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+              هل يوجد مدعوون إضافيون للاجتماع؟
+            </span>
+            <input
+              type="checkbox"
+              checked={hasInvitees}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setHasInvitees(checked)
+                if (!checked) {
+                  setInvitees([{ name: '', phone: '' }])
+                }
+              }}
+              className="w-5 h-5 accent-[#097834] rounded cursor-pointer"
+            />
+          </label>
+        </div>
+
+        {/* قائمة المدعوين الإضافيين */}
+        {hasInvitees && (
+          <div className="mt-3 p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-extrabold text-[#097834]">👥 المدعوون الإضافيون</span>
+              <span className="text-xs text-gray-500 font-semibold">{invitees.length} / 5</span>
+            </div>
+
+            {invitees.map((invitee, index) => (
+              <div key={index} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-500">مدعو {index + 1}</span>
+                  {invitees.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvitees(prev => prev.filter((_, i) => i !== index))
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700 font-bold px-1"
+                    >
+                      ✕ إزالة
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="اسم المدعو (اختياري)"
+                  maxLength={80}
+                  value={invitee.name}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setInvitees(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item))
+                  }}
+                  className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                />
+                <input
+                  type="tel"
+                  dir="ltr"
+                  placeholder="رقم الهاتف *"
+                  value={invitee.phone}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setInvitees(prev => prev.map((item, i) => i === index ? { ...item, phone: val } : item))
+                  }}
+                  className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white text-left font-mono"
+                />
+              </div>
+            ))}
+
+            {invitees.length < 5 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (invitees.length < 5) {
+                    setInvitees(prev => [...prev, { name: '', phone: '' }])
+                  }
+                }}
+                className="w-full py-2 px-3 text-xs font-bold text-[#097834] bg-white dark:bg-gray-800 border border-[#097834]/30 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
+              >
+                <span>+ إضافة مدعو آخر</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* زر الحجز */}
         <button
           disabled={isLoading || !isFormValid}
@@ -436,12 +526,27 @@ export default function Home() {
             if (!department) return showToast('error', 'الرجاء اختيار الجهة')
             if (!pin) return showToast('error', 'الرجاء إدخال رمز التحقق')
 
+            if (hasInvitees) {
+              for (let i = 0; i < invitees.length; i++) {
+                if (!invitees[i].phone.trim()) {
+                  return showToast('error', `يرجى إدخال رقم الهاتف للمدعو ${i + 1}`)
+                }
+              }
+            }
+
             const activeSlot = slots.find(s =>
               s.start === selectedSlot.start &&
               s.end === selectedSlot.end &&
               s.durationHours === selectedSlot.durationHours
             );
             if (!activeSlot || activeSlot.status === 'booked') return showToast('error', 'الرجاء اختيار وقت متاح');
+
+            const payloadInvitees = hasInvitees
+              ? invitees.filter(i => i.phone.trim()).map(i => ({
+                  name: i.name.trim() || undefined,
+                  phone: i.phone.trim()
+                }))
+              : undefined
 
             setIsLoading(true)
             try {
@@ -453,7 +558,8 @@ export default function Home() {
                   pin,
                   date,
                   start: activeSlot.start,
-                  end: activeSlot.end
+                  end: activeSlot.end,
+                  invitees: payloadInvitees
                 })
               })
 
@@ -488,6 +594,8 @@ export default function Home() {
                 setPin('');
                 setDateObj(undefined);
                 setIsAutoSelected(false);
+                setHasInvitees(false);
+                setInvitees([{ name: '', phone: '' }]);
               }
 
             } catch (err) {

@@ -6,6 +6,7 @@ import { createBookingNotificationEvents, processDueNotificationEvents, reschedu
 import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
+import { validateAndNormalizeInvitees } from '@/lib/booking-invitees';
 
 export function isActiveBookingForConflict(booking: any) {
   return booking.status === null || booking.status !== 'cancelled';
@@ -40,15 +41,14 @@ export async function POST(request: Request) {
       start_time: st, 
       end_time: et, 
       start, 
-      end 
+      end,
+      invitees: rawInvitees
     } = body;
 
     const start_time = st ?? start;
     const end_time = et ?? end;
 
-    // طباعة البيانات المستلمة للتأكد أثناء الاختبار (End-to-End) - تمت إزالتها لأسباب أمنية
-
-    // Validate inputs
+    // 1. Validate mandatory inputs
     if (!department || !pin || !date || !start_time || !end_time) {
       return NextResponse.json(
         { success: false, message: 'تفقد الحقول المطلوبة: اسم الجهة، رمز PIN، التاريخ، ووقت البداية والنهاية' },
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. تحقق من صحة المواعيد
+    // 2. Validate booking time rules
     const validation = validateBookingRules(date, start_time, end_time);
     if (!validation.valid) {
       return NextResponse.json(
@@ -64,6 +64,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // 3. Validate & normalize invitees (if provided) BEFORE DB operations
+    const inviteesValidation = validateAndNormalizeInvitees(rawInvitees);
+    if (!inviteesValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: inviteesValidation.error },
+        { status: 400 }
+      );
+    }
+    const normalizedInvitees = inviteesValidation.invitees;
 
     const deptResult = await supabase
       .from('departments')
@@ -82,7 +92,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'رمز PIN غير صحيح لهذه الجهة' }, { status: 401 });
     }
 
-    // 2. التحقق من التعارض (Overlap) لنفس اليوم والوقت بدقة الاحترافية
+    // 4. Check conflict
     const { data: allExisting, error: checkError } = await (supabase as any)
       .from('bookings')
       .select('*')
@@ -102,7 +112,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
     }
 
-    // 3. حفظ الحجز في قاعدة البيانات (with department_id)
+    // 5. Insert booking into database
     let bookingData: InsertedBooking | null = null;
     try {
       const { data: insertedBooking, error: insertError } = await (supabase as any)
@@ -130,6 +140,38 @@ export async function POST(request: Request) {
     } catch (insertError) {
       console.error("Booking Insert Error:", insertError);
       return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
+    }
+
+    // 6. Insert booking_invitees (if any) with compensating delete on failure
+    if (normalizedInvitees.length > 0 && bookingData?.id) {
+      const inviteeRows = normalizedInvitees.map((inv) => ({
+        booking_id: bookingData!.id,
+        name: inv.name,
+        phone: inv.phone,
+      }));
+
+      const { error: inviteesInsertError } = await (supabase as any)
+        .from('booking_invitees')
+        .insert(inviteeRows);
+
+      if (inviteesInsertError) {
+        console.error('[API Bookings] Invitee insert error:', inviteesInsertError.message);
+
+        // Compensating delete: remove newly created booking
+        const { error: compDeleteError } = await (supabase as any)
+          .from('bookings')
+          .delete()
+          .eq('id', bookingData.id);
+
+        if (compDeleteError) {
+          console.error('[CRITICAL] Compensating delete failed for booking:', bookingData.id, compDeleteError.message);
+        }
+
+        return NextResponse.json(
+          { success: false, message: 'فشل في حفظ مدعوي الحجز' },
+          { status: 500 }
+        );
+      }
     }
 
     // 4. Format time strings for notifications
