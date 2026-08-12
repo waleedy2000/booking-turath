@@ -16,6 +16,7 @@
 | الرفض الافتراضي (Default Deny) لـ RLS | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | وصول `anon` المباشر ببعض سياسات القراءة/الكتابة. |
 | اعتماد مدعوين إضافيين على مستوى الحجز (`BOOKING_INVITEES_V1`) | `IMPLEMENTED_AND_VERIFIED` | الالتزام: `4e048ff` و `OWNER_CONFIRMED_PRODUCTION_FACT` | إضافتهم كأعضاء في الجهة أو إنشاء محرك إشعارات جديد. |
 | تخصيص إشعارات المدعوين (SMS فقط ودون Push) | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | شمول المدعوين في إشعارات Push. |
+| اعتماد Asia/Kuwait كسلطة زمنية لحساب اليوم وحظر الأوقات الماضية (`DEFAULT_KUWAIT_DATE_AND_PAST_SLOTS`) | `IMPLEMENTED_AND_PRODUCTION_VERIFIED` | الالتزام: `a51768a` و `OWNER_CONFIRMED_PRODUCTION_FACT` | الاعتماد على تاريخ UTC أو التوقيت المحلي لمتصفح المستخدم. |
 | تأجيل المرحلة الثالثة (Stage C) | `DEFERRED_NOT_CANCELLED` | `OWNER_CONFIRMED_DECISION` | التخطيط للبدء الفوري بها. |
 
 ## الالتزامات الرئيسية والمرجعية
