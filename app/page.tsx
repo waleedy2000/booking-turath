@@ -16,6 +16,7 @@ import { app } from "@/lib/firebase"
 import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
 import ForegroundNotificationToast from "@/components/ForegroundNotificationToast"
 import MonthlyInquiry from "@/components/MonthlyInquiry"
+import { getKuwaitTodayDate } from "@/lib/kuwait-time"
 
 dayjs.locale('ar')
 
@@ -49,7 +50,7 @@ export default function Home() {
   }, [])
 
   const router = useRouter()
-  const [dateObj, setDateObj] = useState<Date | undefined>()
+  const [dateObj, setDateObj] = useState<Date | undefined>(() => getKuwaitTodayDate())
   const date = dateObj ? dayjs(dateObj).format('YYYY-MM-DD') : ''
   const [showCalendar, setShowCalendar] = useState(false)
   const [bookingDurationHours, setBookingDurationHours] = useState<1 | 2>(1)
@@ -427,6 +428,12 @@ export default function Home() {
                 ✔ تم اختيار أقرب وقت متاح تلقائيًّا
               </p>
             )}
+          </div>
+        )}
+
+        {date && slots.length > 0 && slots.every(s => s.status === 'booked') && (
+          <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 rounded-xl text-sm font-bold text-amber-800 dark:text-amber-300 text-center animate-fade-in">
+            <span>⚠️ لا توجد أوقات متاحة متبقية لهذا اليوم</span>
           </div>
         )}
 

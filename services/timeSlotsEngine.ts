@@ -1,3 +1,5 @@
+import { isSlotInPastForKuwait } from "@/lib/kuwait-time";
+
 export type TimeSlot = {
   start: string; // "09:00"
   end: string;   // "11:00"
@@ -79,17 +81,19 @@ function isSlotBooked(slot: TimeSlot, bookings: Booking[]) {
 export function getAvailableSlots(
   date: string,
   bookings: Booking[],
-  durations?: Array<1 | 2>
+  durations?: Array<1 | 2>,
+  now: Date = new Date()
 ): TimeSlot[] {
   const slots = buildSlots(durations);
   const dayBookings = getBookingsForDay(date, bookings);
 
   return slots.map((slot) => {
     const booked = isSlotBooked(slot, dayBookings);
+    const past = isSlotInPastForKuwait(date, slot.start, now);
 
     return {
       ...slot,
-      status: booked ? "booked" : "available",
+      status: booked || past ? "booked" : "available",
     };
   });
 }
@@ -100,7 +104,12 @@ export type ValidationResult = {
   message?: string;
 };
 
-export function validateBookingRules(date: string, startTime: string, endTime: string): ValidationResult {
+export function validateBookingRules(
+  date: string,
+  startTime: string,
+  endTime: string,
+  now: Date = new Date()
+): ValidationResult {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   const timeRegex = /^\d{2}:\d{2}$/;
 
@@ -141,14 +150,8 @@ export function validateBookingRules(date: string, startTime: string, endTime: s
     return { valid: false, code: 'OUTSIDE_WORK_HOURS', message: 'الموعد خارج أوقات العمل أو يتجاوز فترة الاستراحة' };
   }
 
-  // Check past date/time using Kuwait time
-  const now = new Date();
-  const kuwaitOffsetHours = 3;
-
-  // Construct UTC time of the booking (subtract Kuwait offset)
-  const bookingUtcTime = new Date(Date.UTC(year, month - 1, day, startHour - kuwaitOffsetHours, startMinute, 0, 0));
-
-  if (bookingUtcTime.getTime() < now.getTime()) {
+  // Check past date/time using centralized Kuwait time logic
+  if (isSlotInPastForKuwait(date, startTime, now)) {
     return { valid: false, code: 'PAST_DATE', message: 'لا يمكن حجز موعد في الماضي' };
   }
 
