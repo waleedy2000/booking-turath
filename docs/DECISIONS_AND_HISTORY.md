@@ -14,6 +14,8 @@
 | إعادة استخدام صف `final_reminder` (Upsert) | `APPROVED_DECISION` | الالتزام: `65cc4da` | حذف وإنشاء حدث تنبيه جديد. |
 | حماية مسارات الأدمن بـ JWT | `APPROVED_DECISION` | الالتزام: `69361dc` | وصول الشبكة المحلية المباشر. |
 | الرفض الافتراضي (Default Deny) لـ RLS | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | وصول `anon` المباشر ببعض سياسات القراءة/الكتابة. |
+| اعتماد مدعوين إضافيين على مستوى الحجز (`BOOKING_INVITEES_V1`) | `IMPLEMENTED_AND_VERIFIED` | الالتزام: `4e048ff` و `OWNER_CONFIRMED_PRODUCTION_FACT` | إضافتهم كأعضاء في الجهة أو إنشاء محرك إشعارات جديد. |
+| تخصيص إشعارات المدعوين (SMS فقط ودون Push) | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | شمول المدعوين في إشعارات Push. |
 | تأجيل المرحلة الثالثة (Stage C) | `DEFERRED_NOT_CANCELLED` | `OWNER_CONFIRMED_DECISION` | التخطيط للبدء الفوري بها. |
 
 ## الالتزامات الرئيسية والمرجعية

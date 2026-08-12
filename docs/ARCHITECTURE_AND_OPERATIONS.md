@@ -26,6 +26,9 @@
   - لا توجد أي سياسات مكتوبة (`no policies`).
   - النتيجة الفعلية للوصول المباشر: الرفض الافتراضي (`Default Deny`).
 - **مسار العمليات:** جميع العمليات تمر حصرياً عبر الخادم (Server) باستخدام صلاحيات مرتفعة (Service Role)، وهو ما يمنع وصول المستخدمين مجهولي الهوية (anon) أو المسجلين (authenticated) من إجراء تعديلات مباشرة.
+- **مسار حسم المستلمين (Recipient Resolution Flow):**
+  `مسؤول الحجز (Booking Contact) + المشاركون الفاعلون (Department Participants) + المدعوون الإضافيون (Booking Invitees) ← التقييس (Normalize) ← منع التكرار (Deduplicate) ← booking_notification_events ← kwtSMS`
+- **خاصية المدعوين (`booking_invitees`):** يتم التعامل مع جدول المدعوين حصرياً عبر الخادم (Server-side only)، مع تفعيل RLS بدون سياسات عامة (Default Deny). يحصل المدعوون على إشعارات SMS فقط (تأكيد وتذكير نهائي)، والإشعارات الفورية (Push) غير مستخدمة لهم في V1.
 - **صلاحيات الجداول (Grants):** تم منح صلاحيات واسعة (مثل TRUNCATE و INSERT و UPDATE) للأدوار الافتراضية، ورغم أنها لا تتجاوز حماية RLS لعمليات الصفوف وتعتبر غير حاجبة لسير العمل، إلا أنها مُصنفة كمراجعة أمنية متأخرة (`SECURITY_HARDENING_REVIEW`).
 
 ## متغيرات البيئة المطلوبة (Environment Variables)

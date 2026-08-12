@@ -456,7 +456,7 @@ export default function Home() {
           <div className="mt-3 p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-extrabold text-[#097834]">👥 المدعوون الإضافيون</span>
-              <span className="text-xs text-gray-500 font-semibold">{invitees.length} / 5</span>
+              <span className="text-xs text-gray-500 font-semibold">{invitees.length} من 5</span>
             </div>
 
             {invitees.map((invitee, index) => (

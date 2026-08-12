@@ -5,11 +5,19 @@
 - `departments`: إدارة قائمة الجهات والأقسام المسموح لها بالحجز.
 - `department_managers`: ربط مدراء الأقسام بجهاتهم.
 - `department_participants`: تسجيل المشاركين في الاجتماعات.
+- `booking_invitees`: تسجيل المدعوين الإضافيين التابعين بحجز محدد فقط.
 - `settings`: تخزين الإعدادات العامة للنظام وتكوينات الأيام.
 - `push_tokens`: تخزين معرفات الأجهزة لإرسال الإشعارات الفورية.
 - `subscribers`: إدارة المشتركين في تنبيهات الأيام الجديدة.
 - `message_queue`: طابور مؤقت لمعالجة وإرسال الرسائل والإشعارات.
 - `booking_notification_events`: جدول تتبع حالة إرسال الإشعارات لكل حجز.
+
+## جدول المدعوين الإضافيين (`booking_invitees`)
+- **بنية الحقول:** `id (UUID)`, `booking_id (FK -> bookings ON DELETE CASCADE)`, `name (TEXT, optional)`, `phone (TEXT, NOT NULL)`, `created_at`.
+- **القيد الفريد:** `UNIQUE (booking_id, phone)` لمنع تكرار نفس الرقم لنفس الحجز.
+- **صيغة رقم الهاتف:** مخزن بالصيغة الموحدة المقيسة للنظام (`+965XXXXXXXX`).
+- **التكامل مع الإشعارات:** يتم إدخال أرقام المدعوين في دالة حسم المستلمين `getBookingNotificationRecipients(departmentId, bookingId)` لتدخل تلقائياً في أحداث التأكيد والتذكير النهائي بجدول `booking_notification_events`.
+- **تعديل وإلغاء الحجز:** تشمل دالة `rescheduleFinalReminders` المدعوين تلقائياً عند تغيير وقت الحجز، ويغطي مسار الإلغاء المرن (Soft Cancel) أحداث التذكير المعلقة للمدعوين بتحويلها إلى `skipped` دون الحاجة إلى منطق إلغاء خاص بالمدعوين.
 
 ## إشعارات الحجوزات وتتبع الأحداث (`booking_notification_events`)
 - **القيد الفريد (Unique Constraint):**
