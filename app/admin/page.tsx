@@ -257,29 +257,53 @@ export default function AdminPage() {
     if (!selectedDeptId || !newPartPhone) return toast.error('الرقم مطلوب')
     const id = toast.loading('جاري الإضافة...')
     try {
-      await fetch('/api/participants', {
+      const res = await fetch('/api/participants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ department_id: selectedDeptId, name: newPartName, phone: normalizePhone(newPartPhone) })
       })
+      let data: any = null
+      try {
+        data = await res.json()
+      } catch {}
+
+      if (!res.ok) {
+        toast.error(data?.error || 'فشل إضافة المشارك', { id })
+        return
+      }
+
       setNewPartName(''); setNewPartPhone('')
-      fetchParticipants(selectedDeptId)
+      await fetchParticipants(selectedDeptId)
       toast.success('تمت الإضافة', { id })
-    } catch { toast.error('فشل', { id }) }
+    } catch {
+      toast.error('فشل الاتصال بالخادم', { id })
+    }
   }
 
   const deleteParticipant = async (partId: string) => {
     if (!confirm('تأكيد حذف المشارك؟')) return
     const id = toast.loading('جاري الحذف...')
     try {
-      await fetch('/api/participants', {
+      const res = await fetch('/api/participants', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: partId })
       })
-      if (selectedDeptId) fetchParticipants(selectedDeptId)
+      let data: any = null
+      try {
+        data = await res.json()
+      } catch {}
+
+      if (!res.ok) {
+        toast.error(data?.error || 'فشل حذف المشارك', { id })
+        return
+      }
+
+      if (selectedDeptId) await fetchParticipants(selectedDeptId)
       toast.success('تم الحذف', { id })
-    } catch { toast.error('فشل', { id }) }
+    } catch {
+      toast.error('فشل الاتصال بالخادم', { id })
+    }
   }
 
   const updateDeptContact = async (name: string, contactName: string, contactPhone: string) => {
@@ -1048,14 +1072,27 @@ export default function AdminPage() {
                     if (!items.length) return toast.error('لا توجد بيانات صالحة');
                     const id = toast.loading(`جاري استيراد ${items.length} مشارك...`);
                     try {
-                      await fetch('/api/participants', {
+                      const res = await fetch('/api/participants', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ department_id: selectedDeptId, participants: items })
                       });
-                      toast.success(`تم استيراد ${items.length} مشارك`, { id });
-                      fetchParticipants(selectedDeptId);
-                    } catch { toast.error('فشل الاستيراد', { id }) }
+                      let resData: any = null;
+                      try {
+                        resData = await res.json();
+                      } catch {}
+
+                      if (!res.ok) {
+                        toast.error(resData?.error || 'فشل الاستيراد', { id });
+                        return;
+                      }
+
+                      await fetchParticipants(selectedDeptId);
+                      const importedCount = resData?.imported ?? items.length;
+                      toast.success(`تم استيراد ${importedCount} مشارك`, { id });
+                    } catch {
+                      toast.error('فشل الاستيراد', { id });
+                    }
                     e.target.value = '';
                   }} />
                 </label>
