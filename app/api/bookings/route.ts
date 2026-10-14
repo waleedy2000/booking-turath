@@ -8,10 +8,13 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
 import { validateAndNormalizeInvitees } from '@/lib/booking-invitees';
 import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants';
+import {
+  executeBookingReschedule,
+  executeBookingCancel,
+  isActiveBookingForConflict
+} from '@/services/bookingOperationsService';
 
-export function isActiveBookingForConflict(booking: any) {
-  return booking.status === null || booking.status !== 'cancelled';
-}
+export { isActiveBookingForConflict };
 
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
@@ -305,35 +308,23 @@ export async function DELETE(request: Request) {
   const authError = await requireAdmin();
   if (authError) return authError;
 
-  const supabase = getSupabaseAdmin();
   try {
     const { id } = await request.json();
 
     if (!id) {
-      return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 })
+      return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 });
     }
 
-    const { error } = await supabase
-      .from('bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
+    const result = await executeBookingCancel({
+      bookingId: id,
+      actorType: 'admin'
+    });
 
-    if (error) {
-      return NextResponse.json({ error: 'فشل الإلغاء' }, { status: 500 })
+    if (!result.success) {
+      return NextResponse.json({ error: result.message }, { status: result.status });
     }
 
-    // Cancel any future notification events
-    await supabase
-      .from('booking_notification_events')
-      .update({ status: 'skipped' })
-      .eq('booking_id', id)
-      .eq('status', 'pending');
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || 'Internal server error' },
@@ -346,7 +337,6 @@ export async function PUT(request: Request) {
   const authError = await requireAdmin();
   if (authError) return authError;
 
-  const supabase = getSupabaseAdmin();
   try {
     const body = await request.json();
     const { id, date, start_time, end_time } = body;
@@ -355,77 +345,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, message: 'معلومات غير مكتملة' }, { status: 400 });
     }
 
-    const validation = validateBookingRules(date, start_time, end_time);
-    if (!validation.valid) {
-      return NextResponse.json({ success: false, message: validation.message }, { status: 400 });
+    const result = await executeBookingReschedule({
+      bookingId: id,
+      date,
+      startTime: start_time,
+      endTime: end_time,
+      actorType: 'admin'
+    });
+
+    if (!result.success) {
+      return NextResponse.json({ success: false, message: result.message }, { status: result.status });
     }
 
-    // Get current booking
-    const { data: booking, error: fetchError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchError || !booking) {
-      return NextResponse.json({ success: false, message: 'الحجز غير موجود' }, { status: 404 });
-    }
-
-    if (booking.status === 'cancelled') {
-      return NextResponse.json({ success: false, message: 'لا يمكن تعديل حجز ملغى' }, { status: 400 });
-    }
-
-    // Check conflict
-    const { data: allExisting, error: checkError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', date)
-      .neq('id', id);
-
-    if (checkError) {
-      return NextResponse.json({ success: false, message: 'حدث خطأ أثناء التحقق من المواعيد' }, { status: 500 });
-    }
-
-    const activeExisting = (allExisting as any[])?.filter(isActiveBookingForConflict) || [];
-    const conflict = activeExisting.some((b: any) =>
-      start_time < b.end_time && end_time > b.start_time
-    );
-
-    if (conflict) {
-      return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
-    }
-
-    // Update booking
-    const { error: updateError } = await supabase
-      .from('bookings')
-      .update({
-        date,
-        start_time,
-        end_time,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (updateError) {
-      return NextResponse.json({ success: false, message: 'فشل تعديل الحجز' }, { status: 500 });
-    }
-
-    // Handle notifications safely without sending edit SMS
-    try {
-       await rescheduleFinalReminders({
-          id: booking.id,
-          department_id: booking.department_id,
-          department_name: booking.department_name,
-          date,
-          start_time,
-          end_time,
-       });
-    } catch (evtErr: any) {
-       console.error('Failed to reschedule final reminders:', evtErr);
-       return NextResponse.json({ success: false, message: 'تم تعديل الحجز ولكن فشلت إعادة جدولة التذكير' }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: 'تم تعديل الحجز بنجاح' });
+    return NextResponse.json({ success: true, message: result.message });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err?.message || 'Internal server error' }, { status: 500 });
   }

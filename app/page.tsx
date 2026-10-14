@@ -16,6 +16,7 @@ import { app } from "@/lib/firebase"
 import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
 import ForegroundNotificationToast from "@/components/ForegroundNotificationToast"
 import MonthlyInquiry from "@/components/MonthlyInquiry"
+import BookingManagementModal from "@/components/BookingManagementModal"
 import { getKuwaitTodayDate } from "@/lib/kuwait-time"
 import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants'
 
@@ -71,6 +72,7 @@ export default function Home() {
     { name: '', phone: '' }
   ])
   const [bookingType, setBookingType] = useState<'regular' | 'emergency'>('regular')
+  const [showManagementModal, setShowManagementModal] = useState(false)
 
   const handleBookingTypeChange = (type: 'regular' | 'emergency') => {
     if (type === bookingType) return
@@ -777,6 +779,31 @@ export default function Home() {
         </button>
 
       </div>
+
+      {/* Secondary Action: Manage Existing Booking */}
+      <div className="w-full max-w-xl mx-auto mt-6 mb-2 p-5 bg-white dark:bg-gray-900 border border-emerald-100 dark:border-gray-800 rounded-2xl shadow-sm text-center">
+        <p className="text-gray-800 dark:text-gray-200 font-bold text-sm mb-1">
+          لديك حجز قائم؟
+        </p>
+        <p className="text-gray-500 dark:text-gray-400 text-xs mb-3.5">
+          يمكنك تعديل موعدك أو إلغاؤه
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowManagementModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl border border-[#097834] text-[#097834] hover:bg-[#097834]/10 dark:hover:bg-[#097834]/20 font-bold text-sm transition-all shadow-sm"
+        >
+          <span>إدارة الحجز</span>
+          <span className="text-base">⚙️</span>
+        </button>
+      </div>
+
+      {/* Booking Management Modal */}
+      <BookingManagementModal
+        isOpen={showManagementModal}
+        onClose={() => setShowManagementModal(false)}
+        departments={departments}
+      />
 
       {/* Monthly Inquiry UI Section */}
       <MonthlyInquiry />
