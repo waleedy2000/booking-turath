@@ -17,6 +17,7 @@ import { requestPermissionAndGetToken } from "@/lib/firebase-messaging"
 import ForegroundNotificationToast from "@/components/ForegroundNotificationToast"
 import MonthlyInquiry from "@/components/MonthlyInquiry"
 import { getKuwaitTodayDate } from "@/lib/kuwait-time"
+import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants'
 
 dayjs.locale('ar')
 
@@ -69,6 +70,22 @@ export default function Home() {
   const [invitees, setInvitees] = useState<Array<{ name: string; phone: string }>>([
     { name: '', phone: '' }
   ])
+  const [bookingType, setBookingType] = useState<'regular' | 'emergency'>('regular')
+
+  const handleBookingTypeChange = (type: 'regular' | 'emergency') => {
+    if (type === bookingType) return
+    setBookingType(type)
+    setPin('')
+    if (type === 'emergency') {
+      setDepartment(EMERGENCY_DEPARTMENT_NAME)
+      setHasInvitees(true)
+      setInvitees([{ name: '', phone: '' }])
+    } else {
+      setDepartment('')
+      setHasInvitees(false)
+      setInvitees([{ name: '', phone: '' }])
+    }
+  }
 
   const { install, isInstallable, isIOS, isStandalone, installed, showInstallPrompt } = usePWAInstall()
 
@@ -219,7 +236,10 @@ export default function Home() {
     }
   }, [date, loadingTimes, selectedSlot, slots])
 
-  const isFormValid = department && pin && date && selectedSlot
+  const isFormValid =
+    bookingType === 'emergency'
+      ? Boolean(pin.trim()) && Boolean(date) && Boolean(selectedSlot) && invitees.length > 0 && invitees.some(i => i.phone.trim())
+      : Boolean(department) && Boolean(pin.trim()) && Boolean(date) && Boolean(selectedSlot)
 
   return (
     <main className="min-h-screen p-6 font-[Cairo] pb-[max(100px,calc(100px+env(safe-area-inset-bottom)))]">
@@ -310,18 +330,51 @@ export default function Home() {
       {/* الكارد */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/50 p-8 max-w-md mx-auto border border-gray-100 dark:border-gray-800 transition-all duration-300">
 
-        {/* اختيار الجهة */}
-        <Select
-          value={department}
-          onChange={setDepartment}
-          placeholder={loadingDepartments ? "جاري تحميل الجهات..." : "اختر الجهة"}
-          options={departments.map((dept) => ({ label: dept.name, value: dept.name }))}
-        />
+        {/* نوع الحجز */}
+        <div className="mb-4">
+          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">
+            نوع الحجز
+          </label>
+          <div className="grid grid-cols-2 gap-2 p-1 bg-[#f8f7f3] dark:bg-gray-800 rounded-xl border border-[#e6e2d8] dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => handleBookingTypeChange('regular')}
+              className={`py-2 px-3 rounded-lg text-sm font-bold transition-all ${
+                bookingType === 'regular'
+                  ? 'bg-[#097834] !text-white shadow-sm'
+                  : 'bg-transparent text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-900'
+              }`}
+            >
+              حجز جهة
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBookingTypeChange('emergency')}
+              className={`py-2 px-3 rounded-lg text-sm font-bold transition-all ${
+                bookingType === 'emergency'
+                  ? 'bg-[#097834] !text-white shadow-sm'
+                  : 'bg-transparent text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-900'
+              }`}
+            >
+              اجتماع طارئ
+            </button>
+          </div>
+        </div>
 
-        {/* رمز الجهة */}
+        {/* اختيار الجهة (فقط في وضع حجز جهة) */}
+        {bookingType === 'regular' && (
+          <Select
+            value={department}
+            onChange={setDepartment}
+            placeholder={loadingDepartments ? "جاري تحميل الجهات..." : "اختر الجهة"}
+            options={departments.map((dept) => ({ label: dept.name, value: dept.name }))}
+          />
+        )}
+
+        {/* رمز الجهة أو رمز الاجتماع الطارئ */}
         <input
           type="password"
-          placeholder="رمز الجهة"
+          placeholder={bookingType === 'emergency' ? "رمز الاجتماع الطارئ" : "رمز الجهة"}
           className="w-full p-3 border rounded-xl mb-4 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
@@ -437,89 +490,164 @@ export default function Home() {
           </div>
         )}
 
-        {/* خيار المدعوين الإضافيين */}
-        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <label className="flex items-center justify-between cursor-pointer py-1 select-none">
-            <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
-              هل يوجد مدعوون إضافيون للاجتماع؟
-            </span>
-            <input
-              type="checkbox"
-              checked={hasInvitees}
-              onChange={(e) => {
-                const checked = e.target.checked
-                setHasInvitees(checked)
-                if (!checked) {
-                  setInvitees([{ name: '', phone: '' }])
-                }
-              }}
-              className="w-5 h-5 accent-[#097834] rounded cursor-pointer"
-            />
-          </label>
-        </div>
-
-        {/* قائمة المدعوين الإضافيين */}
-        {hasInvitees && (
-          <div className="mt-3 p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-extrabold text-[#097834]">👥 المدعوون الإضافيون</span>
-              <span className="text-xs text-gray-500 font-semibold">{invitees.length} من 5</span>
+        {/* وضع حجز الجهة: خيار المدعوين الإضافيين الاختياري */}
+        {bookingType === 'regular' && (
+          <>
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <label className="flex items-center justify-between cursor-pointer py-1 select-none">
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                  هل يوجد مدعوون إضافيون للاجتماع؟
+                </span>
+                <input
+                  type="checkbox"
+                  checked={hasInvitees}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setHasInvitees(checked)
+                    if (!checked) {
+                      setInvitees([{ name: '', phone: '' }])
+                    }
+                  }}
+                  className="w-5 h-5 accent-[#097834] rounded cursor-pointer"
+                />
+              </label>
             </div>
 
-            {invitees.map((invitee, index) => (
-              <div key={index} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 relative">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-500">مدعو {index + 1}</span>
-                  {invitees.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInvitees(prev => prev.filter((_, i) => i !== index))
-                      }}
-                      className="text-xs text-red-500 hover:text-red-700 font-bold px-1"
-                    >
-                      ✕ إزالة
-                    </button>
-                  )}
+            {hasInvitees && (
+              <div className="mt-3 p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-extrabold text-[#097834]">👥 المدعوون الإضافيون</span>
+                  <span className="text-xs text-gray-500 font-semibold">{invitees.length} من 5</span>
                 </div>
-                <input
-                  type="text"
-                  placeholder="اسم المدعو (اختياري)"
-                  maxLength={80}
-                  value={invitee.name}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setInvitees(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item))
-                  }}
-                  className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
-                />
-                <input
-                  type="tel"
-                  dir="ltr"
-                  placeholder="رقم الهاتف *"
-                  value={invitee.phone}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setInvitees(prev => prev.map((item, i) => i === index ? { ...item, phone: val } : item))
-                  }}
-                  className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white text-left font-mono"
-                />
-              </div>
-            ))}
 
-            {invitees.length < 5 && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (invitees.length < 5) {
-                    setInvitees(prev => [...prev, { name: '', phone: '' }])
-                  }
-                }}
-                className="w-full py-2 px-3 text-xs font-bold text-[#097834] bg-white dark:bg-gray-800 border border-[#097834]/30 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
-              >
-                <span>+ إضافة مدعو آخر</span>
-              </button>
+                {invitees.map((invitee, index) => (
+                  <div key={index} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 relative">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-500">مدعو {index + 1}</span>
+                      {invitees.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInvitees(prev => prev.filter((_, i) => i !== index))
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 font-bold px-1"
+                        >
+                          ✕ إزالة
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="اسم المدعو (اختياري)"
+                      maxLength={80}
+                      value={invitee.name}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setInvitees(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item))
+                      }}
+                      className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                    />
+                    <input
+                      type="tel"
+                      dir="ltr"
+                      placeholder="رقم الهاتف *"
+                      value={invitee.phone}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setInvitees(prev => prev.map((item, i) => i === index ? { ...item, phone: val } : item))
+                      }}
+                      className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white text-left font-mono"
+                    />
+                  </div>
+                ))}
+
+                {invitees.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (invitees.length < 5) {
+                        setInvitees(prev => [...prev, { name: '', phone: '' }])
+                      }
+                    }}
+                    className="w-full py-2 px-3 text-xs font-bold text-[#097834] bg-white dark:bg-gray-800 border border-[#097834]/30 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <span>+ إضافة مدعو آخر</span>
+                  </button>
+                )}
+              </div>
             )}
+          </>
+        )}
+
+        {/* وضع الاجتماع الطارئ: المشاركون في الاجتماع الطارئ (ظاهر دائمًا وإلزامي) */}
+        {bookingType === 'emergency' && (
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <div className="p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-extrabold text-[#097834]">المشاركون في الاجتماع الطارئ</span>
+                  <span className="text-xs text-gray-500 font-semibold">{invitees.length} من 5</span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  أدخل أرقام من سيحضر الاجتماع ليصلهم التأكيد والتذكير.
+                </p>
+              </div>
+
+              {invitees.map((invitee, index) => (
+                <div key={index} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-500">مشارك {index + 1}</span>
+                    {invitees.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInvitees(prev => prev.filter((_, i) => i !== index))
+                        }}
+                        className="text-xs text-red-500 hover:text-red-700 font-bold px-1"
+                      >
+                        ✕ إزالة
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="اسم المشارك (اختياري)"
+                    maxLength={80}
+                    value={invitee.name}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setInvitees(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item))
+                    }}
+                    className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                  />
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    placeholder="رقم الهاتف *"
+                    value={invitee.phone}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setInvitees(prev => prev.map((item, i) => i === index ? { ...item, phone: val } : item))
+                    }}
+                    className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white text-left font-mono"
+                  />
+                </div>
+              ))}
+
+              {invitees.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (invitees.length < 5) {
+                      setInvitees(prev => [...prev, { name: '', phone: '' }])
+                    }
+                  }}
+                  className="w-full py-2 px-3 text-xs font-bold text-[#097834] bg-white dark:bg-gray-800 border border-[#097834]/30 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
+                >
+                  <span>+ إضافة مشارك آخر</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -530,10 +658,20 @@ export default function Home() {
             setToast(null)
             if (!date) return showToast('error', 'الرجاء اختيار التاريخ')
             if (!selectedSlot) return showToast('error', 'الرجاء اختيار الوقت')
-            if (!department) return showToast('error', 'الرجاء اختيار الجهة')
-            if (!pin) return showToast('error', 'الرجاء إدخال رمز التحقق')
+            if (bookingType === 'regular' && !department) return showToast('error', 'الرجاء اختيار الجهة')
+            if (!pin) return showToast('error', bookingType === 'emergency' ? 'الرجاء إدخال رمز الاجتماع الطارئ' : 'الرجاء إدخال رمز التحقق')
 
-            if (hasInvitees) {
+            if (bookingType === 'emergency') {
+              const validPhones = invitees.filter(i => i.phone.trim())
+              if (validPhones.length === 0) {
+                return showToast('error', 'يجب إضافة مشارك واحد على الأقل للاجتماع الطارئ')
+              }
+              for (let i = 0; i < invitees.length; i++) {
+                if (!invitees[i].phone.trim()) {
+                  return showToast('error', `يرجى إدخال رقم الهاتف للمشارك ${i + 1}`)
+                }
+              }
+            } else if (hasInvitees) {
               for (let i = 0; i < invitees.length; i++) {
                 if (!invitees[i].phone.trim()) {
                   return showToast('error', `يرجى إدخال رقم الهاتف للمدعو ${i + 1}`)
@@ -548,20 +686,26 @@ export default function Home() {
             );
             if (!activeSlot || activeSlot.status === 'booked') return showToast('error', 'الرجاء اختيار وقت متاح');
 
-            const payloadInvitees = hasInvitees
-              ? invitees.filter(i => i.phone.trim()).map(i => ({
+            const payloadInvitees = bookingType === 'emergency'
+              ? invitees.map(i => ({
                   name: i.name.trim() || undefined,
                   phone: i.phone.trim()
                 }))
-              : undefined
+              : hasInvitees
+                ? invitees.filter(i => i.phone.trim()).map(i => ({
+                    name: i.name.trim() || undefined,
+                    phone: i.phone.trim()
+                  }))
+                : undefined
 
             setIsLoading(true)
             try {
+              const bookingDept = bookingType === 'emergency' ? EMERGENCY_DEPARTMENT_NAME : department
               const res = await fetch('/api/bookings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  department,
+                  department: bookingDept,
                   pin,
                   date,
                   start: activeSlot.start,
@@ -587,7 +731,7 @@ export default function Home() {
                           return `${s.time} ${s.period} - ${e.time} ${e.period}`;
                         })()}
                       </p>
-                      <p className="!text-white/90">🏢 الجهة: {department}</p>
+                      <p className="!text-white/90">🏢 الجهة: {bookingDept}</p>
                     </div>
                   </div>
                 ))
@@ -601,8 +745,13 @@ export default function Home() {
                 setPin('');
                 setDateObj(undefined);
                 setIsAutoSelected(false);
-                setHasInvitees(false);
-                setInvitees([{ name: '', phone: '' }]);
+                if (bookingType === 'emergency') {
+                  setInvitees([{ name: '', phone: '' }]);
+                } else {
+                  setDepartment('');
+                  setHasInvitees(false);
+                  setInvitees([{ name: '', phone: '' }]);
+                }
               }
 
             } catch (err) {

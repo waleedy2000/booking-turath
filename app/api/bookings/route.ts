@@ -7,6 +7,7 @@ import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
 import { validateAndNormalizeInvitees } from '@/lib/booking-invitees';
+import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants';
 
 export function isActiveBookingForConflict(booking: any) {
   return booking.status === null || booking.status !== 'cancelled';
@@ -88,8 +89,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'الجهة غير مسجلة لدينا' }, { status: 404 });
     }
 
+    const isEmergency = department === EMERGENCY_DEPARTMENT_NAME;
+
     if (deptData.pin_code !== pin) {
-      return NextResponse.json({ error: 'رمز PIN غير صحيح لهذه الجهة' }, { status: 401 });
+      const pinMsg = isEmergency ? 'رمز الاجتماع الطارئ غير صحيح' : 'رمز PIN غير صحيح لهذه الجهة';
+      return NextResponse.json({ error: pinMsg, message: pinMsg }, { status: 401 });
+    }
+
+    if (isEmergency && normalizedInvitees.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'يجب إضافة مشارك واحد على الأقل للاجتماع الطارئ' },
+        { status: 400 }
+      );
     }
 
     // 4. Check conflict

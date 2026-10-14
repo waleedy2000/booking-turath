@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { normalizeOptionalKuwaitiPhone } from "@/utils/phone";
+import { EMERGENCY_DEPARTMENT_NAME } from "@/lib/booking-constants";
 const supabase = getSupabaseAdmin();
 
 export async function GET() {
@@ -12,7 +13,8 @@ export async function GET() {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json(data ?? []);
+    const filtered = (data ?? []).filter((dept: any) => dept?.name !== EMERGENCY_DEPARTMENT_NAME);
+    return NextResponse.json(filtered);
   } catch (err: any) {
     const status = err?.message?.startsWith('Phone number') ? 400 : 500;
     return NextResponse.json(
