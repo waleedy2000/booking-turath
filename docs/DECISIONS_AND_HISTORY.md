@@ -17,10 +17,20 @@
 | اعتماد مدعوين إضافيين على مستوى الحجز (`BOOKING_INVITEES_V1`) | `IMPLEMENTED_AND_VERIFIED` | الالتزام: `4e048ff` و `OWNER_CONFIRMED_PRODUCTION_FACT` | إضافتهم كأعضاء في الجهة أو إنشاء محرك إشعارات جديد. |
 | تخصيص إشعارات المدعوين (SMS فقط ودون Push) | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | شمول المدعوين في إشعارات Push. |
 | اعتماد Asia/Kuwait كسلطة زمنية لحساب اليوم وحظر الأوقات الماضية (`DEFAULT_KUWAIT_DATE_AND_PAST_SLOTS`) | `IMPLEMENTED_AND_PRODUCTION_VERIFIED` | الالتزام: `a51768a` و `OWNER_CONFIRMED_PRODUCTION_FACT` | الاعتماد على تاريخ UTC أو التوقيت المحلي لمتصفح المستخدم. |
+| تحصين واجهة إدارة المشاركين وفحص `response.ok` لمنع النجاح الوهمي (`PARTICIPANTS_ADMIN_HARDENING`) | `IMPLEMENTED_AND_PRODUCTION_VERIFIED` | الالتزام: `44fe5dc` | افتراض نجاح Fetch دون فحص `res.ok` (False Success عند كود 400/500). |
+| التقييس الخادمي لهواتف المشاركين (`normalizeKuwaitiPhone`) ومنع التكرار المجمع | `APPROVED_DECISION` | الالتزام: `44fe5dc` | الاعتماد على تدقيق العميل فقط (Client-side validation). |
+| اعتماد نمط "جهة النظام الخاصة" للاجتماع الطارئ (`Special System Department`) | `IMPLEMENTED_AND_VERIFIED` | الالتزام: `8a66985` | إضافة عمود أصيل `booking_type` يستلزم تعديل Schema قاعدة البيانات. |
+| إعادة استخدام جدول `booking_invitees` لمشاركي الطوارئ | `APPROVED_DECISION` | الالتزام: `8a66985` | إنشاء جدول مستقل ومكرر باسم `emergency_participants`. |
+| احتواء مخاطرة الكيان السحري عبر ثابت مركزي واحد (`EMERGENCY_DEPARTMENT_NAME`) | `APPROVED_DECISION` | الالتزام: `8a66985` (`lib/booking-constants.ts`) | تكرار النصوص الحرفية لاسم جهة النظام في عدة ملفات. |
+| اعتماد cron-job.org كل 5 دقائق للمهام المجدولة وحمايتها بـ `CRON_SECRET` | `APPROVED_DECISION` | `OWNER_CONFIRMED_PRODUCTION_FACT` | الاعتماد على مشغلات محلية أو Vercel Cron. |
 | تأجيل المرحلة الثالثة (Stage C) | `DEFERRED_NOT_CANCELLED` | `OWNER_CONFIRMED_DECISION` | التخطيط للبدء الفوري بها. |
 
 ## الالتزامات الرئيسية والمرجعية
 تُشكل هذه الالتزامات الأساس التشغيلي وتؤكد تطبيق القرارات المذكورة أعلاه:
+- `8a66985`: إضافة ميزة ونمط حجز الاجتماع الطارئ وتثبيت الثابت المركزي.
+- `44fe5dc`: تحصين إدارة المشاركين باللوحة والتأكد من استجابة الخادم وتقييس الهواتف.
+- `a51768a`: اعتماد توقيت الكويت كسلطة زمنية وحظر الأوقات والتواريخ الماضية.
+- `4e048ff`: إضافة ميزة المدعوين الإضافيين التابعين للحجز وتنبيهات SMS.
 - `69361dc`: حماية الأدمن وفرض قواعد الحجز والمصادقة.
 - `2916b0c`: تقصير رسائل SMS إلى رسالة واحدة (تجنب شرائح متعددة).
 - `65cc4da`: إصلاح إعادة جدولة التذكيرات النهائية بعد تعديلات الحجوزات.
