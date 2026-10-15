@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, Clock, AlertTriangle, ArrowRight, CheckCircle2, RotateCw } from 'lucide-react';
+import { X, Calendar, AlertTriangle, CheckCircle2, RotateCw } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
-import { getKuwaitDateString, getKuwaitTodayDate } from '@/lib/kuwait-time';
+import { getKuwaitDateString } from '@/lib/kuwait-time';
 import { getAvailableSlots, TimeSlot } from '@/services/timeSlotsEngine';
 import { formatTimeRange } from '@/utils/timeFormat';
 
@@ -28,13 +28,13 @@ type DepartmentOption = {
 interface BookingManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  departments: DepartmentOption[];
+  departments?: DepartmentOption[];
 }
 
 export default function BookingManagementModal({
   isOpen,
   onClose,
-  departments,
+  departments = [],
 }: BookingManagementModalProps) {
   const [mode, setMode] = useState<'regular' | 'emergency'>('regular');
   const [selectedDeptId, setSelectedDeptId] = useState('');
@@ -62,6 +62,54 @@ export default function BookingManagementModal({
     setSuccessMsg(null);
   }, [mode, selectedDeptId, pin, emergencyPin, participantPhone]);
 
+  // Fetch slots for reschedule date
+  useEffect(() => {
+    if (!isOpen || !editingBooking || !rescheduleDate) return;
+
+    let isMounted = true;
+    const fetchSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const res = await fetch(`/api/bookings?date=${rescheduleDate}`);
+        const dayBookings = res.ok ? await res.json() : [];
+
+        // Exclude the current booking to avoid self-conflict
+        const otherBookings = (dayBookings || []).filter(
+          (b: any) => b.id !== editingBooking.id
+        );
+
+        // Determine duration: 1 or 2 hours
+        const [sh, sm] = editingBooking.start_time.split(':').map(Number);
+        const [eh, em] = editingBooking.end_time.split(':').map(Number);
+        const durationHours: 1 | 2 = (eh * 60 + em) - (sh * 60 + sm) > 60 ? 2 : 1;
+
+        const slots = getAvailableSlots(
+          rescheduleDate,
+          otherBookings.map((b: any) => ({
+            date: b.date,
+            start: b.start_time || b.start,
+            end: b.end_time || b.end,
+          })),
+          [durationHours],
+          new Date()
+        );
+
+        if (isMounted) {
+          setAvailableSlots(slots);
+        }
+      } catch (err) {
+        console.error('Error fetching slots for reschedule:', err);
+      } finally {
+        if (isMounted) setLoadingSlots(false);
+      }
+    };
+
+    fetchSlots();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, editingBooking, rescheduleDate]);
+
   // Handle closing modal
   const handleClose = () => {
     setBookings(null);
@@ -74,8 +122,6 @@ export default function BookingManagementModal({
     setSuccessMsg(null);
     onClose();
   };
-
-  if (!isOpen) return null;
 
   // 1. LOOKUP
   const handleLookup = async (e?: React.FormEvent) => {
@@ -132,54 +178,6 @@ export default function BookingManagementModal({
     setErrorMsg(null);
     setSuccessMsg(null);
   };
-
-  // Fetch slots for reschedule date
-  useEffect(() => {
-    if (!editingBooking || !rescheduleDate) return;
-
-    let isMounted = true;
-    const fetchSlots = async () => {
-      setLoadingSlots(true);
-      try {
-        const res = await fetch(`/api/bookings?date=${rescheduleDate}`);
-        const dayBookings = res.ok ? await res.json() : [];
-
-        // Exclude the current booking to avoid self-conflict
-        const otherBookings = (dayBookings || []).filter(
-          (b: any) => b.id !== editingBooking.id
-        );
-
-        // Determine duration: 1 or 2 hours
-        const [sh, sm] = editingBooking.start_time.split(':').map(Number);
-        const [eh, em] = editingBooking.end_time.split(':').map(Number);
-        const durationHours: 1 | 2 = (eh * 60 + em) - (sh * 60 + sm) > 60 ? 2 : 1;
-
-        const slots = getAvailableSlots(
-          rescheduleDate,
-          otherBookings.map((b: any) => ({
-            date: b.date,
-            start: b.start_time || b.start,
-            end: b.end_time || b.end,
-          })),
-          [durationHours],
-          new Date()
-        );
-
-        if (isMounted) {
-          setAvailableSlots(slots);
-        }
-      } catch (err) {
-        console.error('Error fetching slots for reschedule:', err);
-      } finally {
-        if (isMounted) setLoadingSlots(false);
-      }
-    };
-
-    fetchSlots();
-    return () => {
-      isMounted = false;
-    };
-  }, [editingBooking, rescheduleDate]);
 
   // Execute Reschedule
   const handleConfirmReschedule = async () => {
@@ -276,6 +274,8 @@ export default function BookingManagementModal({
       setIsLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   const todayStr = getKuwaitDateString();
 
