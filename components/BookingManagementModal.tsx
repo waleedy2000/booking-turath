@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ar';
 import { getKuwaitDateString } from '@/lib/kuwait-time';
 import { getAvailableSlots, TimeSlot } from '@/services/timeSlotsEngine';
-import { formatTimeRange } from '@/utils/timeFormat';
+import { formatTimeRange, formatSingleTime } from '@/utils/timeFormat';
 
 dayjs.locale('ar');
 
@@ -61,6 +61,15 @@ export default function BookingManagementModal({
     setErrorMsg(null);
     setSuccessMsg(null);
   }, [mode, selectedDeptId, pin, emergencyPin, participantPhone]);
+
+  // Auto-dismiss success message after 6 seconds
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   // Fetch slots for reschedule date
   useEffect(() => {
@@ -124,11 +133,13 @@ export default function BookingManagementModal({
   };
 
   // 1. LOOKUP
-  const handleLookup = async (e?: React.FormEvent) => {
+  const handleLookup = async (e?: React.FormEvent, preserveSuccess = false) => {
     if (e) e.preventDefault();
     setIsLoading(true);
     setErrorMsg(null);
-    setSuccessMsg(null);
+    if (!preserveSuccess) {
+      setSuccessMsg(null);
+    }
 
     try {
       const payload: any = { action: 'lookup', type: mode };
@@ -220,8 +231,8 @@ export default function BookingManagementModal({
       } else {
         setSuccessMsg('تم تعديل موعد الحجز بنجاح');
         setEditingBooking(null);
-        // Refresh bookings list
-        handleLookup();
+        // Refresh bookings list while preserving success message
+        await handleLookup(undefined, true);
       }
     } catch (err) {
       setErrorMsg('فشل الاتصال بالخادم، يرجى المحاولة لاحقاً');
@@ -265,8 +276,8 @@ export default function BookingManagementModal({
       } else {
         setSuccessMsg('تم إلغاء الحجز بنجاح');
         setCancellingBooking(null);
-        // Refresh bookings list
-        handleLookup();
+        // Refresh bookings list while preserving success message
+        await handleLookup(undefined, true);
       }
     } catch (err) {
       setErrorMsg('فشل الاتصال بالخادم، يرجى المحاولة لاحقاً');
@@ -316,8 +327,8 @@ export default function BookingManagementModal({
           </div>
         )}
         {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-emerald-700 dark:text-emerald-400 text-sm flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <div className="mb-4 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl text-[#097834] dark:text-emerald-300 text-sm font-bold flex items-center gap-2.5 shadow-sm animate-fade-in">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-[#097834] dark:text-emerald-400" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -567,50 +578,97 @@ export default function BookingManagementModal({
                 اختر الوقت الجديد
               </label>
               {loadingSlots ? (
-                <div className="text-center py-4 text-xs text-gray-500 flex items-center justify-center gap-2">
-                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                <div className="text-center py-6 text-xs text-gray-500 flex items-center justify-center gap-2">
+                  <RotateCw className="w-4 h-4 animate-spin text-[#097834]" />
                   <span>جاري فحص الأوقات المتاحة...</span>
                 </div>
               ) : availableSlots.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                <p className="text-xs text-gray-500 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
                   لا توجد فترات عمل متاحة في هذا اليوم
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                <div className="grid grid-cols-2 gap-2.5 max-h-64 sm:max-h-72 overflow-y-auto p-1 direction-rtl">
                   {availableSlots.map((slot) => {
-                    const isAvailable = slot.status === 'available';
+                    const isCurrentBookingSlot =
+                      rescheduleDate === editingBooking.date &&
+                      slot.start === editingBooking.start_time &&
+                      slot.end === editingBooking.end_time;
+
                     const isSelected =
+                      !isCurrentBookingSlot &&
                       rescheduleSlot?.start === slot.start &&
                       rescheduleSlot?.end === slot.end;
+
+                    const isAvailable = slot.status === 'available' && !isCurrentBookingSlot;
 
                     return (
                       <button
                         key={`${slot.start}-${slot.end}`}
                         type="button"
                         disabled={!isAvailable}
-                        onClick={() => setRescheduleSlot(slot)}
-                        className={`p-2.5 rounded-xl text-xs font-bold border transition-all ${
-                          isSelected
-                            ? 'bg-[#097834] text-white border-[#097834] shadow-sm'
+                        onClick={() => {
+                          if (isAvailable) {
+                            setRescheduleSlot(slot);
+                          }
+                        }}
+                        className={`w-full min-w-0 py-3 px-2.5 rounded-xl border text-center transition-all ${
+                          isCurrentBookingSlot
+                            ? 'bg-slate-100 dark:bg-slate-800/70 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-not-allowed opacity-90'
+                            : isSelected
+                            ? 'bg-[#097834] hover:bg-[#07602a] border-[#097834] !text-white shadow-md scale-[1.02]'
                             : isAvailable
-                            ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[#097834]'
-                            : 'bg-gray-100 dark:bg-gray-900 text-gray-400 border-gray-100 dark:border-gray-800 cursor-not-allowed opacity-50'
+                            ? 'bg-[#e6f2eb] hover:bg-[#d4e9dc] text-[#1f6f4a] dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border-emerald-200/70 dark:border-emerald-800/60 cursor-pointer shadow-sm hover:-translate-y-0.5'
+                            : '!bg-gray-100 dark:!bg-gray-800/50 border-gray-200 dark:border-gray-800 !text-gray-400 dark:!text-gray-500 cursor-not-allowed opacity-60'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-1" dir="rtl">
-                          <span>{slot.start}</span>
-                          <span>-</span>
-                          <span>{slot.end}</span>
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="flex items-center justify-center gap-1.5 font-extrabold text-sm sm:text-base leading-none" dir="rtl">
+                            <span className={isSelected ? '!text-white' : undefined}>
+                              {formatSingleTime(slot.start)}
+                            </span>
+                            <span className={`text-xs ${isSelected ? '!text-white opacity-80' : 'opacity-40'}`}>
+                              ←
+                            </span>
+                            <span className={isSelected ? '!text-white' : undefined}>
+                              {formatSingleTime(slot.end)}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[11px] font-bold block mt-1.5 leading-none ${
+                              isCurrentBookingSlot
+                                ? 'text-slate-500 dark:text-slate-400 font-extrabold'
+                                : isSelected
+                                ? '!text-white font-extrabold'
+                                : isAvailable
+                                ? 'text-[#1f6f4a] dark:text-emerald-400'
+                                : 'text-gray-400 dark:text-gray-500'
+                            }`}
+                          >
+                            {isCurrentBookingSlot
+                              ? 'الموعد الحالي 📌'
+                              : isSelected
+                              ? 'تم الاختيار ✓'
+                              : isAvailable
+                              ? 'متاح'
+                              : 'غير متاح'}
+                          </span>
                         </div>
-                        <span className="text-[10px] block mt-0.5 opacity-80">
-                          {isAvailable ? 'متاح' : 'محجوز'}
-                        </span>
                       </button>
                     );
                   })}
                 </div>
               )}
             </div>
+
+            {/* Selected slot preview */}
+            {rescheduleSlot && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 font-bold text-center animate-fade-in">
+                <span>الموعد الجديد المختار: </span>
+                <span dir="rtl" className="font-extrabold">
+                  {dayjs(rescheduleDate).format('DD / MM / YYYY')} — من {formatSingleTime(rescheduleSlot.start)} إلى {formatSingleTime(rescheduleSlot.end)}
+                </span>
+              </div>
+            )}
 
             {/* Confirm buttons */}
             <div className="flex items-center gap-2 pt-2">
