@@ -423,15 +423,15 @@ export default function BookingManagementModal({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-[#097834] hover:bg-[#07602a] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl bg-[#097834] hover:bg-[#07602a] focus:ring-2 focus:ring-[#097834] focus:ring-offset-2 focus:outline-none !text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    <span>جاري التحقق...</span>
+                    <RotateCw className="w-4 h-4 animate-spin !text-white" />
+                    <span className="!text-white">جاري التحقق...</span>
                   </>
                 ) : (
-                  <span>عرض حجوزاتي</span>
+                  <span className="!text-white">عرض حجوزاتي</span>
                 )}
               </button>
             </form>
@@ -497,9 +497,10 @@ export default function BookingManagementModal({
                       <button
                         type="button"
                         onClick={() => startReschedule(b)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-sm"
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#097834] hover:bg-[#07602a] focus:ring-2 focus:ring-[#097834] focus:outline-none !text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        تعديل الموعد ✏️
+                        <span className="!text-white">تعديل الموعد</span>
+                        <span className="text-xs">✏️</span>
                       </button>
                       <button
                         type="button"
@@ -617,15 +618,15 @@ export default function BookingManagementModal({
                 type="button"
                 onClick={handleConfirmReschedule}
                 disabled={isLoading || !rescheduleSlot}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#097834] hover:bg-[#07602a] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-3 px-4 rounded-xl bg-[#097834] hover:bg-[#07602a] focus:ring-2 focus:ring-[#097834] focus:outline-none !text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    <span>جاري الحفظ...</span>
+                    <RotateCw className="w-4 h-4 animate-spin !text-white" />
+                    <span className="!text-white">جاري الحفظ...</span>
                   </>
                 ) : (
-                  <span>تأكيد تعديل الموعد</span>
+                  <span className="!text-white">تأكيد تعديل الموعد</span>
                 )}
               </button>
               <button
