@@ -739,15 +739,15 @@ export default function BookingManagementModal({
                 type="button"
                 onClick={handleConfirmCancel}
                 disabled={isLoading}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none !text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    <span>جاري الإلغاء...</span>
+                    <RotateCw className="w-4 h-4 animate-spin !text-white" />
+                    <span className="!text-white">جاري الإلغاء...</span>
                   </>
                 ) : (
-                  <span>نعم، تأكيد إلغاء الحجز</span>
+                  <span className="!text-white">نعم، تأكيد إلغاء الحجز</span>
                 )}
               </button>
               <button
