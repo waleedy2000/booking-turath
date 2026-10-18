@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "@/utils/supabase-admin";
 import { validateBookingRules } from "@/services/timeSlotsEngine";
-import { rescheduleFinalReminders } from "@/lib/booking-notification-events";
+import { rescheduleFinalReminders, dispatchRescheduleNotifications } from "@/lib/booking-notification-events";
 
 export function isActiveBookingForConflict(booking: any): boolean {
   return booking.status === null || booking.status !== 'cancelled';
@@ -57,11 +57,26 @@ export async function executeBookingReschedule(params: RescheduleParams): Promis
     return { success: false, status: 404, message: 'الحجز غير موجود' };
   }
 
+  // 3. Reject cancelled booking
   if (booking.status === 'cancelled') {
     return { success: false, status: 400, message: 'لا يمكن تعديل حجز ملغى' };
   }
 
-  // 3. Conflict detection excluding current booking
+  // 4. No-Op guard: avoid duplicate updates/SMS when requested time equals current time
+  if (
+    booking.date === date &&
+    booking.start_time === startTime &&
+    booking.end_time === endTime
+  ) {
+    return {
+      success: true,
+      status: 200,
+      message: 'الموعد مطابق للموعد الحالي بالفعل',
+      data: { noOp: true }
+    };
+  }
+
+  // 5. Conflict detection excluding current booking
   const { data: allExisting, error: checkError } = await supabase
     .from('bookings')
     .select('*')
@@ -82,23 +97,78 @@ export async function executeBookingReschedule(params: RescheduleParams): Promis
     return { success: false, status: 409, message: 'هذا الوقت محجوز بالفعل' };
   }
 
-  // 4. Update booking
-  const { error: updateError } = await supabase
+  // 6. Generate deterministic mutation timestamp & capture previous state
+  const newUpdatedAt = new Date().toISOString();
+  const oldDate = booking.date;
+  const oldStartTime = booking.start_time;
+  const oldEndTime = booking.end_time;
+
+  // 7. Optimistic conditional update: ensure booking state has not changed concurrently
+  let updateQuery = supabase
     .from('bookings')
     .update({
       date,
       start_time: startTime,
       end_time: endTime,
-      updated_at: new Date().toISOString()
+      updated_at: newUpdatedAt
     })
-    .eq('id', bookingId);
+    .eq('id', bookingId)
+    .eq('date', oldDate)
+    .eq('start_time', oldStartTime)
+    .eq('end_time', oldEndTime);
+
+  if (booking.status === null) {
+    updateQuery = updateQuery.is('status', null);
+  } else {
+    updateQuery = updateQuery.eq('status', booking.status);
+  }
+
+  const { data: updatedBooking, error: updateError } = await updateQuery
+    .select('id, date, start_time, end_time, updated_at')
+    .maybeSingle();
 
   if (updateError) {
     console.error('[bookingOperationsService] Failed to update booking:', updateError.message);
     return { success: false, status: 500, message: 'فشل تعديل الحجز' };
   }
 
-  // 5. Notification reminders rescheduling
+  // 8. Handle lost optimistic update or concurrent retry
+  if (!updatedBooking) {
+    const { data: freshBooking } = await supabase
+      .from('bookings')
+      .select('id, date, start_time, end_time, status')
+      .eq('id', bookingId)
+      .single();
+
+    if (!freshBooking || freshBooking.status === 'cancelled') {
+      return {
+        success: false,
+        status: 400,
+        message: 'لا يمكن تعديل حجز ملغى'
+      };
+    }
+
+    if (
+      freshBooking.date === date &&
+      freshBooking.start_time === startTime &&
+      freshBooking.end_time === endTime
+    ) {
+      return {
+        success: true,
+        status: 200,
+        message: 'الموعد مطابق للموعد الحالي بالفعل',
+        data: { noOp: true }
+      };
+    }
+
+    return {
+      success: false,
+      status: 409,
+      message: 'تم تعديل الحجز بواسطة طلب آخر. حدّث البيانات وحاول مرة أخرى'
+    };
+  }
+
+  // 9. Notification reminders rescheduling
   try {
     await rescheduleFinalReminders({
       id: booking.id,
@@ -113,7 +183,7 @@ export async function executeBookingReschedule(params: RescheduleParams): Promis
     return { success: false, status: 500, message: 'تم تعديل الحجز ولكن فشلت إعادة جدولة التذكير' };
   }
 
-  // 6. Audit log recording (non-blocking failure policy)
+  // 10. Audit log recording (non-blocking failure policy)
   try {
     const { error: auditError } = await supabase
       .from('booking_activity_log')
@@ -121,9 +191,9 @@ export async function executeBookingReschedule(params: RescheduleParams): Promis
         booking_id: booking.id,
         action: 'rescheduled',
         actor_type: actorType,
-        old_date: booking.date,
-        old_start_time: booking.start_time,
-        old_end_time: booking.end_time,
+        old_date: oldDate,
+        old_start_time: oldStartTime,
+        old_end_time: oldEndTime,
         new_date: date,
         new_start_time: startTime,
         new_end_time: endTime,
@@ -134,6 +204,21 @@ export async function executeBookingReschedule(params: RescheduleParams): Promis
     }
   } catch (auditErr: any) {
     console.error('[bookingOperationsService] Failed to insert audit log (non-blocking):', auditErr);
+  }
+
+  // 11. Reschedule SMS notification dispatch (non-blocking failure policy)
+  try {
+    await dispatchRescheduleNotifications({
+      bookingId: booking.id,
+      departmentId: booking.department_id,
+      oldDate,
+      oldStartTime,
+      newDate: date,
+      newStartTime: startTime,
+      mutationTimestamp: newUpdatedAt,
+    });
+  } catch (smsErr: any) {
+    console.error('[bookingOperationsService] Non-blocking reschedule SMS dispatch warning:', smsErr);
   }
 
   return { success: true, status: 200, message: 'تم تعديل الحجز بنجاح' };

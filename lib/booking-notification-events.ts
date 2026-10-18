@@ -3,6 +3,7 @@ import { enqueueSms, processSmsQueue } from "@/lib/sms-service";
 import { getBookingNotificationRecipients } from "@/lib/participant-service";
 import { getSettings } from "@/lib/settings-service";
 import { formatTo12Hour } from "@/utils/timeFormat";
+import { normalizeKuwaitiPhone } from "@/lib/phone-utils";
 
 type NotificationStage = 'confirmation' | 'early_reminder' | 'final_reminder';
 
@@ -251,6 +252,107 @@ function buildSmsMessage(stage: NotificationStage, booking: BookingForEvents, re
   }
 
   return `لديك موعد اجتماع بعد ساعة\n${formattedDate}\n${formattedStart}\n${booking.department_name}`;
+}
+
+function formatBookingShortDate(date: string) {
+  const [, m, d] = date.split('-');
+  return `${d}/${m}`;
+}
+
+export function formatRescheduleSmsMessage(
+  oldDate: string,
+  oldStartTime: string,
+  newDate: string,
+  newStartTime: string
+): string {
+  const oldFormattedTime = formatBookingTime(oldStartTime);
+  const newFormattedTime = formatBookingTime(newStartTime);
+
+  if (oldDate === newDate) {
+    const formattedDate = formatBookingDate(newDate);
+    return `تم تعديل موعد الاجتماع\n${formattedDate}\nمن ${oldFormattedTime} إلى ${newFormattedTime}`;
+  }
+
+  const oldShortDate = formatBookingShortDate(oldDate);
+  const newShortDate = formatBookingShortDate(newDate);
+  return `تم تعديل موعد الاجتماع\nمن ${oldShortDate} ${oldFormattedTime}\nإلى ${newShortDate} ${newFormattedTime}`;
+}
+
+/**
+ * Get original recipients who successfully received the confirmation SMS for this specific booking.
+ * Strictly queries booking_notification_events (channel=sms, stage=confirmation, status=sent, sent_at IS NOT NULL).
+ * Does NOT call getBookingNotificationRecipients or department participants.
+ */
+export async function getOriginalSuccessfulConfirmationRecipients(bookingId: string): Promise<string[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('booking_notification_events')
+    .select('phone')
+    .eq('booking_id', bookingId)
+    .eq('channel', 'sms')
+    .eq('stage', 'confirmation')
+    .eq('status', 'sent')
+    .not('sent_at', 'is', null);
+
+  if (error || !data) {
+    console.error(`[BookingNotificationEvents] Error fetching original confirmation recipients for booking ${bookingId}:`, error);
+    return [];
+  }
+
+  const uniquePhones = Array.from(
+    new Set((data as Array<{ phone: string }>).map((r) => normalizeKuwaitiPhone(r.phone)).filter(Boolean) as string[])
+  );
+
+  return uniquePhones;
+}
+
+/**
+ * Dispatch reschedule SMS notifications to the original confirmation recipients.
+ * Non-blocking: catches and logs any unexpected error so it never fails the caller.
+ */
+export async function dispatchRescheduleNotifications(params: {
+  bookingId: string;
+  departmentId?: string | null;
+  oldDate: string;
+  oldStartTime: string;
+  newDate: string;
+  newStartTime: string;
+  mutationTimestamp: string;
+}) {
+  try {
+    const phones = await getOriginalSuccessfulConfirmationRecipients(params.bookingId);
+    if (phones.length === 0) {
+      console.log(`[BookingNotificationEvents] No original confirmation recipients found for booking ${params.bookingId}. Skipping reschedule notification.`);
+      return { queued: 0, recipients: 0 };
+    }
+
+    const message = formatRescheduleSmsMessage(
+      params.oldDate,
+      params.oldStartTime,
+      params.newDate,
+      params.newStartTime
+    );
+
+    const messageType = `reschedule:${params.bookingId}:${params.mutationTimestamp}`;
+    const scheduleTime = new Date().toISOString();
+
+    const queued = await enqueueSms(
+      phones,
+      message,
+      messageType,
+      params.departmentId || undefined,
+      scheduleTime
+    );
+
+    if (queued.ids.length > 0) {
+      await processSmsQueue({ ids: queued.ids });
+    }
+
+    return { queued: queued.queued, recipients: phones.length };
+  } catch (err) {
+    console.error(`[BookingNotificationEvents] Failed to dispatch reschedule SMS for booking ${params.bookingId} (non-blocking):`, err);
+    return { queued: 0, error: err };
+  }
 }
 
 async function markEvent(id: string, status: 'sent' | 'failed' | 'expired' | 'skipped', fields: Record<string, unknown> = {}) {
