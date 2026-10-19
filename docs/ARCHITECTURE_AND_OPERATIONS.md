@@ -75,6 +75,32 @@
 - **فلترة القوائم العامة:**
   يستبعد مسار `GET /api/departments` جهة النظام برمجياً في الذاكرة لمنع ظهورها في القوائم المنسدلة العادية أو شاشات إدارة الأقسام.
 
+## معمارية إشعار تعديل الموعد (RESCHEDULE_SMS_NOTIFICATION_V1 Architecture)
+- **مصدر الحقيقة لمستلمي التعديل (Recipient Source of Truth):**
+  - يُستخرج المستلمون حصرياً من جدول أحداث الإشعارات السابق `booking_notification_events` وفق الشروط الصارمة:
+    `booking_id = target_booking AND channel = 'sms' AND stage = 'confirmation' AND status = 'sent' AND sent_at IS NOT NULL`
+  - تمر كافة الأرقام عبر التقييس الخادمي الموحد `normalizeKuwaitiPhone` ومنع التكرار عبر `Set`.
+  - **حظر التوسع وإعادة الحساب:** لا تعتمد رسالة التعديل على دالة `getBookingNotificationRecipients`، ولا على المشاركين الحاليين للجهة، ولا على مسؤولي الحجز الحاليين، مما يضمن عدم وصول الرسالة لأي مشارك أضيف للجهة بعد إنشاء الحجز (`NO BROADCAST / NO RECIPIENT EXPANSION`).
+  - **المعنى التشغيلي لحالة `sent`:** تعني قبول الرسالة بنجاح من مزود الخدمة (`ORIGINAL_CONFIRMATION_SUCCESSFULLY_SENT_BY_SYSTEM`). لا يوفر النظام Handset Delivery Receipt يثبت التسليم النهائي أو القراءة على جهاز كل مستلم.
+- **تدفق الإرسال والطابور (Queue Flow):**
+  - يتم إدراج الرسائل عبر `enqueueSms` في جدول `message_queue` ثم استدعاء المعالجة الفورية `processSmsQueue` للاتصال بـ `kwtSMS`.
+  - **إرسال غير حاجب (Non-blocking):** فشل إرسال SMS لا يُسقط الحجز، ولا يتراجع عن التعديل في قاعدة البيانات، ولا يلغي التذكيرات أو التدقيق، وتبقى استجابة الـ API ناجحة (`HTTP 200`).
+  - تخضع الرسائل المتعثرة لآلية إعادة المحاولة المدمجة في طابور الرسائل القائم عند استدعاء `/api/send-queue` دورياً.
+- **مفتاح العملية ومنع التصادم (Operation Key / Idempotency):**
+  - يتم توليد مفتاح حتمي فريد للعملية:
+    `message_type = reschedule:<bookingId>:<mutationTimestamp>`
+    حيث يمثل `mutationTimestamp` الختم الزمني الحقيقي المكتوب في حقل `bookings.updated_at`.
+  - هذا المفتاح يمنع الحجب المتبادل بين حجوزات مختلفة تستخدم نفس الأوقات (`NO CROSS-BOOKING COLLISION`)، ويدعم تعدد التعديلات المتتالية لنفس الحجز (`MULTIPLE RESCHEDULES`).
+- **حماية التزامن ومنع الطفرات الوهمية (Optimistic Concurrency & No-Op Guard):**
+  - **No-Op Guard:** التحقق المسبق مما إذا كان الموعد المطلوب يطابق الموعد المسجل حالياً للحجز النشط؛ وفي حال التطابق يُعاد نجاح فوري دون أي كتابة في قاعدة البيانات ودون إدراج Audit أو إرسال SMS.
+  - **Optimistic Update:** يتم تحديث الحجز باشتراط مطابقة الحالة السابقة:
+    `WHERE id = bookingId AND date = oldDate AND start_time = oldStartTime AND end_time = oldEndTime AND status = oldStatus`
+    (مع استخدام `.is('status', null)` للحجوزات القديمة ذات الحالة الفارغة).
+  - **حماية الإلغاء المتزامن (Cancel vs Reschedule Race):** إذا ألغي الحجز بالتزامن قبل الـ Update، تفشل العملية ويعاد رفض صريح بكود `400` ولا يُعامل كـ No-Op Success.
+- **استقرار المعمارية والـ Zero Drift:**
+  - لم يتم تغيير معمارية رسائل التأكيد (`confirmation`) أو التذكير النهائي (`final_reminder`).
+  - صفر تعديلات على Schema أو Migrations لقواعد البيانات، وصفر تعديلات على واجهات المستخدم (Zero UI changes).
+
 ## متغيرات البيئة المطلوبة (Environment Variables)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`

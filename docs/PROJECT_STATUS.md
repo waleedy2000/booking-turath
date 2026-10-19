@@ -24,6 +24,7 @@
 - تحصين إدارة المشاركين باللوحة (`PARTICIPANTS_ADMIN_HARDENING`): فحص `response.ok` لمنع النجاح الوهمي، والتقييس الخادمي للهواتف الكويتية، وتجميع واستبعاد التكرار في استيراد Excel.
 - وضع الاجتماع الطارئ (`EMERGENCY_MEETING_V1`): حجز فوري عبر جهة نظام خاصة مع إدخال حتى 5 مشاركين إلزاميًا وتوصيل رسائل SMS التأكيد والتذكير.
 - الخدمة الذاتية لمسؤولي الحجز (`BOOKING_OWNER_SELF_SERVICE_V1`): استعراض وتعديل وإلغاء المواعيد ذاتياً من الواجهة العامة مع سجل تدقيق خادمي موحد.
+- إشعار تعديل الموعد عبر SMS (`RESCHEDULE_SMS_NOTIFICATION_V1`): إرسال SMS فورية وموجزة لمستلمي التأكيد الأصلي الناجحين حصراً عند تعديل الموعد دون زيادة شرائح UCS-2.
 
 ## حالة المراحل التشغيلية
 - **Stage A:** مكتملة ومختبرة (الاعتماد على حقل `reminder_minutes` للتذكيرات).
@@ -49,8 +50,20 @@
     - إلغاء الحجز (`REGULAR_OWNER_CANCEL = PASS`): تنفيذ Soft Cancel، تحويل التذكيرات المعلقة إلى `skipped`، وتوثيق الإلغاء في سجل التدقيق.
     - سجل التدقيق (`BOOKING_ACTIVITY_AUDIT = PASS`): تسجيل العمليات بدقة وبلا أي بيانات شخصية (No PII).
   - **الواجهة وتجربة المستخدم المثبتة:** زر إدارة الحجز بالصفحة العامة، معالجة استقرار الـ React Hooks، اعتماد ألوان الهوية الخضراء `#097834` مع نص أبيض صريح، توحيد بطاقات الأوقات مع الصفحة الرئيسية (`formatSingleTime`)، تمييز "الموعد الحالي 📌" كعنصر معطل، وإظهار رسائل تأكيد النجاح بعد العمليات.
+- **RESCHEDULE_SMS_NOTIFICATION_V1:**
+  - **الحالة:** مكتملة ومختبرة على الإنتاج (`COMPLETED_AND_PRODUCTION_VERIFIED`).
+  - **ملاحظة التحقق:** التحقق في بيئة الإنتاج يغطي السيناريوهات المختبرة فعلياً (`Production verification covers tested scenarios. Unexecuted edge cases remain explicitly documented. Do not imply 100% scenario coverage`).
+  - **الالتزام المنفذ:** `0d719cc` (`feat: notify original booking recipients on reschedule`).
+  - **أدلة الإنتاج المثبتة:**
+    - تعديل حجز عادي من الخدمة الذاتية (`REGULAR_OWNER_RESCHEDULE_SMS = PASS`): تغيير موعد الحجز، ظهور رسالة النجاح، استلام SMS، تسجيل `message_queue.status = sent`، وتوثيق الفاعل `actor_type = booking_owner`.
+    - تعديل الحجز نفسه مرتين متتاليتين (`MULTIPLE_RESCHEDULES = PASS`): استلام رسالتي SMS مستقلتين، كل رسالة تحمل `message_type` مختلفاً، وجود سجلي Audit، وترحيل التذكير النهائي للموعد الأحدث.
+    - تعديل الحجز من لوحة الإدارة (`REGULAR_ADMIN_RESCHEDULE_SMS = PASS`): وصول SMS للمستلم الأصلي، وتوثيق الفاعل `actor_type = admin`، وحالة `message_queue.status = sent`.
+    - تغيير تاريخ الاجتماع (`DATE_CHANGED_RESCHEDULE_SMS = PASS`): تعديل التاريخ من 19/10/2026 إلى 20/10/2026، استلام النص الدقيق بالتاريخين، تدقيق سليم، وجدولة `final_reminder` قبل الموعد الجديد بساعة.
+    - تعديل اجتماع طارئ (`EMERGENCY_OWNER_RESCHEDULE_SMS = PASS`): تعديل موعد الطوارئ، نجاح بالواجهة، وصول SMS للمشارك الأصلي، `actor_type = booking_owner`، وتحديث التذكيرات.
+    - حصر نطاق المستلمين في الحالات المختبرة (`RECIPIENT_SCOPE_VERIFICATION = PASS FOR TESTED BOOKINGS ONLY`): مطابقة مستلمي التأكيد الأصلي الناجحين مع مستلمي رسالة التعديل للحجز العادي والاجتماع الطارئ (`original_count = 1, reschedule_sent_count = 1, unexpected_recipients = 0, original_not_sent = 0`). لا تُعمم هذه النتيجة على سيناريوهات تغيير قائمة المشاركين التي لم تُختبر إنتاجياً.
 
 ## الالتزامات المرجعية (Commits)
+- **إرسال إشعار تعديل الموعد عبر SMS لمستلمي التأكيد الأصليين:** `0d719cc` (feat: notify original booking recipients on reschedule).
 - **تحسين تباين زر تأكيد الإلغاء:** `882810a` (style: improve booking cancellation button contrast).
 - **توحيد واجهة أوقات التعديل والتغذية الراجعة:** `3a3d2ff` (fix: align reschedule feedback and time slot UI).
 - **توحيد ألوان أزرار الخدمة الذاتية مع الهوية:** `8707d8a` (style: align booking management actions with brand colors).
@@ -64,4 +77,4 @@
 - **خط أساس الاستعادة:** `656a634a5516a0b7a9cc7afff7fce36532ef5c9f` (اعتماد خط أساس الاستعادة).
 
 ## حالة المشروع الحالية
-المشروع في حالة استقرار تشغيلي كامل (`Operational / Production Stable`). الميزات الأساسية والإضافية معتمدة ومثبتة بالكامل في بيئة الإنتاج: المدعوون الإضافيون (`BOOKING_INVITEES_V1`)، التوقيت الكويتي وحظر الفترات الماضية (`DEFAULT_KUWAIT_DATE_AND_PAST_SLOTS`)، تحصين المشاركين (`PARTICIPANTS_ADMIN_HARDENING`)، وضع الاجتماع الطارئ (`EMERGENCY_MEETING_V1`)، والخدمة الذاتية لمسؤولي الحجز (`BOOKING_OWNER_SELF_SERVICE_V1`). المرحلة الثالثة (Stage C) تظل مؤجلة بصراحة ولم تُلغَ (`DEFERRED_NOT_CANCELLED`).
+المشروع في حالة استقرار تشغيلي كامل (`Operational / Production Stable`). الميزات الأساسية والإضافية معتمدة ومثبتة بالكامل في بيئة الإنتاج: المدعوون الإضافيون (`BOOKING_INVITEES_V1`)، التوقيت الكويتي وحظر الفترات الماضية (`DEFAULT_KUWAIT_DATE_AND_PAST_SLOTS`)، تحصين المشاركين (`PARTICIPANTS_ADMIN_HARDENING`)، وضع الاجتماع الطارئ (`EMERGENCY_MEETING_V1`)، الخدمة الذاتية لمسؤولي الحجز (`BOOKING_OWNER_SELF_SERVICE_V1`)، وإشعار تعديل الموعد عبر SMS لمستلمي التأكيد الأصليين (`RESCHEDULE_SMS_NOTIFICATION_V1`). المرحلة الثالثة (Stage C) تظل مؤجلة بصراحة ولم تُلغَ (`DEFERRED_NOT_CANCELLED`).

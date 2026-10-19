@@ -72,6 +72,37 @@
 - **سلوك التنبيهات عند تعديل الموعد (Reschedule Notification Behavior):**
   - لا يتم إنشاء أو تكرار رسالة تأكيد جديدة (`no duplicate confirmation`)، وتبقى رسالة التأكيد التاريخية المرسلة مسبقاً بحالة `sent`.
   - يعاد جدولة التذكير النهائي (`final_reminder`) عبر عملية Upsert ليكون موعد إرساله قبل الموعد الجديد بـ 60 دقيقة وتُعاد حالته إلى `pending`.
+  - يتم إرسال رسالة SMS فورية قصيرة (`RESCHEDULE_SMS_NOTIFICATION_V1`) توضح الموعد القديم والجديد لمستلمي التأكيد الأصليين الناجحين فقط.
+- **رسائل تعديل الموعد عبر SMS (`RESCHEDULE_SMS_NOTIFICATION_V1`):**
+  - **القوالب المعتمدة:**
+    - **القالب الأول (نفس التاريخ - Same Date):**
+      ```text
+      تم تعديل موعد الاجتماع
+      DD/MM/YYYY
+      من hh:mm ص/م إلى hh:mm ص/م
+      ```
+      الطول الفعلي المختبر: **56 حرفاً** (UTF-16 code units / UCS-2).
+    - **القالب الثاني (تغير التاريخ - Date Changed):**
+      ```text
+      تم تعديل موعد الاجتماع
+      من DD/MM hh:mm ص/م
+      إلى DD/MM hh:mm ص/م
+      ```
+      الطول الفعلي المختبر: **57 حرفاً** (UTF-16 code units / UCS-2).
+  - **سياسة الشريحة الواحدة (Single Segment Policy):**
+    - كلا القالبين يقعان تحت سقف الشريحة الواحدة: `<= 70 UTF-16 code units`.
+    - خالية تماماً من الرموز التعبيرية (No emoji).
+    - خالية تماماً من اسم الجهة (No department name) لأن طول أسماء الجهات غير متجانس وقد يتجاوز 70 حرفاً ويضاعف تكلفة الرسائل.
+  - **مصدر الحقيقة للمستلمين (Recipient Source of Truth):**
+    - يتم الاستعلام من `booking_notification_events` وفق الشروط:
+      `booking_id = target_booking AND channel = 'sms' AND stage = 'confirmation' AND status = 'sent' AND sent_at IS NOT NULL`
+    - يتم تقييس الهواتف بـ `normalizeKuwaitiPhone` ومنع التكرار بـ `Set`.
+    - يُحظر استدعاء دالة `getBookingNotificationRecipients` لمنع إدخال مشاركين جدد أضيفوا للجهة لاحقاً (`No Broadcast`).
+    - المعنى التشغيلي لـ `sent`: `ORIGINAL_CONFIRMATION_SUCCESSFULLY_SENT_BY_SYSTEM` (قبول من مزود الخدمة دون وجود Handset DLR).
+  - **طابور الرسائل ومفتاح العملية (Queue & Idempotency):**
+    - الإرسال عبر `message_queue` بمفتاح: `reschedule:<bookingId>:<mutationTimestamp>`.
+    - الإرسال غير حاجب لنجاح التعديل (`Non-blocking`).
+    - حماية التزامن المتفائل و No-Op Guard لمنع تكرار الإرسال أو تعديل الحجوزات الملغاة بالتزامن.
 - **سلوك التنبيهات عند الإلغاء (Cancel Notification Behavior):**
   - تتحول كافة أحداث التذكير النهائي المعلقة (`final_reminder` بحالة `pending`) إلى حالة تخطٍ (`skipped`).
   - تبقى رسائل التأكيد المرسلة سابقاً بحالتها التاريخية `sent` لتوثيق التسليم السابق.
@@ -82,7 +113,7 @@
 - **سلوك التذكير للحجوزات القريبة (Near-start Bookings):**
   إذا أُنشئ الحجز في وقت يكون فيه موعد التذكير النهائي قد فات (أقل من ساعة قبل البدء)، يُسجل الحدث فوراً بحالة:
   `status = 'expired'` و `error = 'final_reminder_expired_at_booking_creation'`
-  وذلك لمنع إرسال رسائل تذكير مضللة بعد فوات أوانها.
+  وذلك لمنع إرسال رسائل تذكير مضللة بعد فوات أوانها. أما رسالة تعديل الموعد (`Reschedule SMS`) فتُرسل فوراً لأنها إشعار فوري بحالة الحجز وليست تذكيراً مجدولاً.
 
 ## قواعد التعارض والإلغاء (Conflict and Cancellation)
 - **الإلغاء المرن (Soft Cancel):**
