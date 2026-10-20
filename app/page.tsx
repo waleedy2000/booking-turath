@@ -19,6 +19,11 @@ import MonthlyInquiry from "@/components/MonthlyInquiry"
 import BookingManagementModal from "@/components/BookingManagementModal"
 import { getKuwaitTodayDate } from "@/lib/kuwait-time"
 import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants'
+import {
+  EmergencyParticipantPicker,
+  SavedParticipantItem,
+  ManualInviteeItem
+} from '@/components/EmergencyParticipantPicker'
 
 dayjs.locale('ar')
 
@@ -71,6 +76,8 @@ export default function Home() {
   const [invitees, setInvitees] = useState<Array<{ name: string; phone: string }>>([
     { name: '', phone: '' }
   ])
+  const [emergencySaved, setEmergencySaved] = useState<SavedParticipantItem[]>([])
+  const [emergencyManual, setEmergencyManual] = useState<ManualInviteeItem[]>([])
   const [bookingType, setBookingType] = useState<'regular' | 'emergency'>('regular')
   const [showManagementModal, setShowManagementModal] = useState(false)
 
@@ -80,12 +87,16 @@ export default function Home() {
     setPin('')
     if (type === 'emergency') {
       setDepartment(EMERGENCY_DEPARTMENT_NAME)
-      setHasInvitees(true)
+      setEmergencySaved([])
+      setEmergencyManual([])
+      setHasInvitees(false)
       setInvitees([{ name: '', phone: '' }])
     } else {
       setDepartment('')
       setHasInvitees(false)
       setInvitees([{ name: '', phone: '' }])
+      setEmergencySaved([])
+      setEmergencyManual([])
     }
   }
 
@@ -240,7 +251,7 @@ export default function Home() {
 
   const isFormValid =
     bookingType === 'emergency'
-      ? Boolean(pin.trim()) && Boolean(date) && Boolean(selectedSlot) && invitees.length > 0 && invitees.some(i => i.phone.trim())
+      ? Boolean(pin.trim()) && Boolean(date) && Boolean(selectedSlot) && (emergencySaved.length > 0 || emergencyManual.length > 0)
       : Boolean(department) && Boolean(pin.trim()) && Boolean(date) && Boolean(selectedSlot)
 
   return (
@@ -581,76 +592,17 @@ export default function Home() {
           </>
         )}
 
-        {/* وضع الاجتماع الطارئ: المشاركون في الاجتماع الطارئ (ظاهر دائمًا وإلزامي) */}
+        {/* وضع الاجتماع الطارئ: اختيار المشاركين (المحفوظين واليدويين) */}
         {bookingType === 'emergency' && (
-          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-            <div className="p-4 bg-[#f8f7f3] dark:bg-gray-800/60 border border-[#e6e2d8] dark:border-gray-700 rounded-xl space-y-3 animate-fade-in">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-extrabold text-[#097834]">المشاركون في الاجتماع الطارئ</span>
-                  <span className="text-xs text-gray-500 font-semibold">{invitees.length} من 5</span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  أدخل أرقام من سيحضر الاجتماع ليصلهم التأكيد والتذكير.
-                </p>
-              </div>
-
-              {invitees.map((invitee, index) => (
-                <div key={index} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-500">مشارك {index + 1}</span>
-                    {invitees.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInvitees(prev => prev.filter((_, i) => i !== index))
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700 font-bold px-1"
-                      >
-                        ✕ إزالة
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="اسم المشارك (اختياري)"
-                    maxLength={80}
-                    value={invitee.name}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setInvitees(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item))
-                    }}
-                    className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
-                  />
-                  <input
-                    type="tel"
-                    dir="ltr"
-                    placeholder="رقم الهاتف *"
-                    value={invitee.phone}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setInvitees(prev => prev.map((item, i) => i === index ? { ...item, phone: val } : item))
-                    }}
-                    className="w-full p-2.5 text-sm border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white text-left font-mono"
-                  />
-                </div>
-              ))}
-
-              {invitees.length < 5 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (invitees.length < 5) {
-                      setInvitees(prev => [...prev, { name: '', phone: '' }])
-                    }
-                  }}
-                  className="w-full py-2 px-3 text-xs font-bold text-[#097834] bg-white dark:bg-gray-800 border border-[#097834]/30 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
-                >
-                  <span>+ إضافة مشارك آخر</span>
-                </button>
-              )}
-            </div>
-          </div>
+          <EmergencyParticipantPicker
+            emergencyPin={pin}
+            departments={departments.filter(d => Boolean(d.id && d.name)) as Array<{ id: string; name: string }>}
+            selectedSaved={emergencySaved}
+            onSelectedSavedChange={setEmergencySaved}
+            manualInvitees={emergencyManual}
+            onManualInviteesChange={setEmergencyManual}
+            onError={(msg) => showToast('error', msg)}
+          />
         )}
 
         {/* زر الحجز */}
@@ -664,14 +616,12 @@ export default function Home() {
             if (!pin) return showToast('error', bookingType === 'emergency' ? 'الرجاء إدخال رمز الاجتماع الطارئ' : 'الرجاء إدخال رمز التحقق')
 
             if (bookingType === 'emergency') {
-              const validPhones = invitees.filter(i => i.phone.trim())
-              if (validPhones.length === 0) {
+              const totalEmergency = emergencySaved.length + emergencyManual.length
+              if (totalEmergency === 0) {
                 return showToast('error', 'يجب إضافة مشارك واحد على الأقل للاجتماع الطارئ')
               }
-              for (let i = 0; i < invitees.length; i++) {
-                if (!invitees[i].phone.trim()) {
-                  return showToast('error', `يرجى إدخال رقم الهاتف للمشارك ${i + 1}`)
-                }
+              if (totalEmergency > 15) {
+                return showToast('error', 'الحد الأقصى للمشاركين هو 15 مشاركاً فقط')
               }
             } else if (hasInvitees) {
               for (let i = 0; i < invitees.length; i++) {
@@ -688,11 +638,17 @@ export default function Home() {
             );
             if (!activeSlot || activeSlot.status === 'booked') return showToast('error', 'الرجاء اختيار وقت متاح');
 
+            const payloadSavedIds = bookingType === 'emergency' && emergencySaved.length > 0
+              ? emergencySaved.map(s => s.id)
+              : undefined
+
             const payloadInvitees = bookingType === 'emergency'
-              ? invitees.map(i => ({
-                  name: i.name.trim() || undefined,
-                  phone: i.phone.trim()
-                }))
+              ? emergencyManual.length > 0
+                ? emergencyManual.map(i => ({
+                    name: i.name.trim() || undefined,
+                    phone: i.phone.trim()
+                  }))
+                : undefined
               : hasInvitees
                 ? invitees.filter(i => i.phone.trim()).map(i => ({
                     name: i.name.trim() || undefined,
@@ -712,7 +668,8 @@ export default function Home() {
                   date,
                   start: activeSlot.start,
                   end: activeSlot.end,
-                  invitees: payloadInvitees
+                  invitees: payloadInvitees,
+                  savedParticipantIds: payloadSavedIds
                 })
               })
 
@@ -748,7 +705,8 @@ export default function Home() {
                 setDateObj(undefined);
                 setIsAutoSelected(false);
                 if (bookingType === 'emergency') {
-                  setInvitees([{ name: '', phone: '' }]);
+                  setEmergencySaved([]);
+                  setEmergencyManual([]);
                 } else {
                   setDepartment('');
                   setHasInvitees(false);

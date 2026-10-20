@@ -6,7 +6,7 @@ import { createBookingNotificationEvents, processDueNotificationEvents, reschedu
 import { normalizeKuwaitiPhone, maskPhone } from '@/lib/phone-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { validateBookingRules } from '@/services/timeSlotsEngine';
-import { validateAndNormalizeInvitees } from '@/lib/booking-invitees';
+import { validateAndNormalizeInvitees, mergeAndDeduplicateParticipants } from '@/lib/booking-invitees';
 import { EMERGENCY_DEPARTMENT_NAME } from '@/lib/booking-constants';
 import {
   executeBookingReschedule,
@@ -46,7 +46,8 @@ export async function POST(request: Request) {
       end_time: et, 
       start, 
       end,
-      invitees: rawInvitees
+      invitees: rawInvitees,
+      savedParticipantIds: rawSavedIds
     } = body;
 
     const start_time = st ?? start;
@@ -69,16 +70,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Validate & normalize invitees (if provided) BEFORE DB operations
-    const inviteesValidation = validateAndNormalizeInvitees(rawInvitees);
-    if (!inviteesValidation.valid) {
-      return NextResponse.json(
-        { success: false, message: inviteesValidation.error },
-        { status: 400 }
-      );
-    }
-    const normalizedInvitees = inviteesValidation.invitees;
-
+    // 3. Verify department and PIN
     const deptResult = await supabase
       .from('departments')
       .select('id, pin_code, phone, booking_contact_phone')
@@ -99,14 +91,119 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: pinMsg, message: pinMsg }, { status: 401 });
     }
 
-    if (isEmergency && normalizedInvitees.length === 0) {
+    // 4. Resolve saved participants (Emergency only) & manual invitees
+    if (!isEmergency && rawSavedIds !== undefined && rawSavedIds !== null) {
+      if (Array.isArray(rawSavedIds) && rawSavedIds.length > 0) {
+        return NextResponse.json(
+          { success: false, message: 'لا يمكن استخدام المشاركين المحفوظين في الحجوزات العادية' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Guard against oversized payload arrays
+    if (Array.isArray(rawSavedIds) && rawSavedIds.length > 50) {
+      return NextResponse.json(
+        { success: false, message: 'عدد المعرفات المدخلة يتجاوز الحد المسموح' },
+        { status: 400 }
+      );
+    }
+    if (Array.isArray(rawInvitees) && rawInvitees.length > 50) {
+      return NextResponse.json(
+        { success: false, message: 'عدد المشاركين المدخل يتجاوز الحد المسموح' },
+        { status: 400 }
+      );
+    }
+
+    let resolvedSaved: Array<{ name: string | null; phone: string }> = [];
+    if (isEmergency && rawSavedIds !== undefined && rawSavedIds !== null) {
+      if (!Array.isArray(rawSavedIds)) {
+        return NextResponse.json(
+          { success: false, message: 'قائمة المشاركين المحفوظين غير صحيحة' },
+          { status: 400 }
+        );
+      }
+
+      for (const id of rawSavedIds) {
+        if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+          return NextResponse.json(
+            { success: false, message: 'معرف المشارك المحفوظ غير صالح' },
+            { status: 400 }
+          );
+        }
+      }
+
+      const uniqueSavedIds = Array.from(new Set(rawSavedIds));
+      if (uniqueSavedIds.length > 0) {
+        const { data: dbParticipants, error: pError } = await (supabase as any)
+          .from('department_participants')
+          .select('id, name, phone, is_active')
+          .in('id', uniqueSavedIds);
+
+        if (pError) {
+          console.error('[API Bookings] Error fetching saved participants:', pError.message);
+          return NextResponse.json(
+            { success: false, message: 'حدث خطأ أثناء استرجاع المشاركين المحفوظين' },
+            { status: 500 }
+          );
+        }
+
+        if (!dbParticipants || dbParticipants.length !== uniqueSavedIds.length) {
+          return NextResponse.json(
+            { success: false, message: 'أحد المشاركين المحفوظين المحددين غير موجود' },
+            { status: 400 }
+          );
+        }
+
+        const hasInactive = dbParticipants.some((p: any) => !p.is_active);
+        if (hasInactive) {
+          return NextResponse.json(
+            { success: false, message: 'أحد المشاركين المحفوظين المحددين غير نشط' },
+            { status: 400 }
+          );
+        }
+
+        resolvedSaved = dbParticipants.map((p: any) => ({
+          name: p.name || null,
+          phone: p.phone,
+        }));
+      }
+    }
+
+    // Validate manual invitees (if provided)
+    const maxInvitees = isEmergency ? 15 : 5;
+    const inviteesValidation = validateAndNormalizeInvitees(rawInvitees, maxInvitees);
+    if (!inviteesValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: inviteesValidation.error },
+        { status: 400 }
+      );
+    }
+    const normalizedManual = inviteesValidation.invitees;
+
+    // Merge and deduplicate across both sources
+    const finalInvitees = mergeAndDeduplicateParticipants(resolvedSaved, normalizedManual);
+
+    if (isEmergency && finalInvitees.length === 0) {
       return NextResponse.json(
         { success: false, message: 'يجب إضافة مشارك واحد على الأقل للاجتماع الطارئ' },
         { status: 400 }
       );
     }
 
-    // 4. Check conflict
+    if (finalInvitees.length > maxInvitees) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: isEmergency
+            ? 'الحد الأقصى للمشاركين هو 15 مشاركاً فقط'
+            : 'الحد الأقصى للمدعوين هو 5 مدعوين فقط'
+        },
+        { status: 400 }
+      );
+    }
+
+    // 5. Check conflict
     const { data: allExisting, error: checkError } = await (supabase as any)
       .from('bookings')
       .select('*')
@@ -126,7 +223,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'هذا الوقت محجوز بالفعل' }, { status: 409 });
     }
 
-    // 5. Insert booking into database
+    // 6. Insert booking into database
     let bookingData: InsertedBooking | null = null;
     try {
       const { data: insertedBooking, error: insertError } = await (supabase as any)
@@ -156,9 +253,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'فشل في حفظ الحجز' }, { status: 500 });
     }
 
-    // 6. Insert booking_invitees (if any) with compensating delete on failure
-    if (normalizedInvitees.length > 0 && bookingData?.id) {
-      const inviteeRows = normalizedInvitees.map((inv) => ({
+    // 7. Insert booking_invitees (if any) with compensating delete on failure
+    if (finalInvitees.length > 0 && bookingData?.id) {
+      const inviteeRows = finalInvitees.map((inv) => ({
         booking_id: bookingData!.id,
         name: inv.name,
         phone: inv.phone,
